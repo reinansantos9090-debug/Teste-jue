@@ -35,7 +35,7 @@ jobs:
               .databaseId' |
           while read -r run_id; do
             [ -z "$run_id" ] && continue
-            gh run cancel "$run_id" || true
+            gh run cancel "$run_id" --repo "$GITHUB_REPOSITORY" || true
           done
 
   build:
