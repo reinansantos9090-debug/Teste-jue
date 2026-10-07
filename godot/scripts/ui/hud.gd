@@ -10,6 +10,7 @@ var state: Node
 var title_label: Label
 var stats_label: Label
 var quest_label: Label
+var move_vector := Vector2.ZERO
 
 func setup(game_state: Node) -> void:
     state = game_state
@@ -40,6 +41,16 @@ func _build() -> void:
     _btn(root,"H1",Vector2(795,575),Vector2(78,78)).pressed.connect(func(): ability_pressed.emit(0))
     _btn(root,"H2",Vector2(885,535),Vector2(78,78)).pressed.connect(func(): ability_pressed.emit(1))
     _btn(root,"H3",Vector2(885,625),Vector2(78,78)).pressed.connect(func(): ability_pressed.emit(2))
+    _move_button(root,"▲",Vector2(42,545),Vector2(84,68),Vector2(0,-1))
+    _move_button(root,"◀",Vector2(0,612),Vector2(84,68),Vector2(-1,0))
+    _move_button(root,"●",Vector2(84,612),Vector2(84,68),Vector2(0,1))
+    _move_button(root,"▶",Vector2(168,612),Vector2(84,68),Vector2(1,0))
+
+func _move_button(parent: Control, caption: String, pos: Vector2, size: Vector2, direction: Vector2) -> void:
+    var b := _btn(parent,caption,pos,size)
+    b.button_down.connect(func(): move_vector=direction)
+    b.button_up.connect(func(): move_vector=Vector2.ZERO)
+    b.mouse_entered.connect(func(): move_vector=direction if b.button_pressed else move_vector)
 
 func _btn(parent: Control, text_value: String, pos: Vector2, size: Vector2) -> Button:
     var b := Button.new()
