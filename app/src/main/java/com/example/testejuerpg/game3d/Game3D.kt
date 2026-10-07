@@ -26,13 +26,16 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
 import com.example.testejuerpg.offline.systems.OfflineHunterDirector
+import com.example.testejuerpg.offline.systems.OfflineRooftopController
+import com.example.testejuerpg.offline.systems.RooftopScreen
+import com.example.testejuerpg.offline.OfflineMode
 
 private data class V3(var x: Float, var y: Float, var z: Float) {
     fun set(other: V3) { x = other.x; y = other.y; z = other.z }
     fun add(dx: Float, dy: Float, dz: Float) { x += dx; y += dy; z += dz }
 }
 
-private enum class SceneMode { HUB, HUNT, INVENTORY }
+private enum class SceneMode { HUB, HUNT, INVENTORY, MENU }
 
 private enum class EnemyKind(
     val displayName: String,
@@ -115,6 +118,7 @@ class Game3DRoot(context: Context) : FrameLayout(context) {
     fun handleBack(): Boolean = when (engine.scene) {
         SceneMode.INVENTORY -> { engine.closeInventory(); true }
         SceneMode.HUNT -> { engine.returnToHub(); true }
+        SceneMode.MENU -> { engine.closeRooftopMenu(); true }
         SceneMode.HUB -> false
     }
 
@@ -158,6 +162,11 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
         val h = height.toFloat()
         paint.style = Paint.Style.FILL
         paint.textAlign = Paint.Align.LEFT
+
+        if (engine.scene == SceneMode.MENU) {
+            drawRooftopMenu(canvas, w, h)
+            return
+        }
 
         if (engine.scene == SceneMode.INVENTORY) {
             drawInventory(canvas, w, h)
@@ -323,6 +332,270 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
         c.drawText("Toque em uma arma para equipar • Voltar retorna ao mundo 3D", 30f, h - 44f, paint)
     }
 
+    private fun drawRooftopMenu(c: Canvas, w: Float, h: Float) {
+        paint.color = 0xF20B1220.toInt()
+        c.drawRect(0f, 0f, w, h, paint)
+        paint.color = 0xFFFFFFFF.toInt()
+        paint.textSize = 25f
+        c.drawText(engine.menuTitle(), 24f, 42f, paint)
+        paint.color = 0xFF9FB5CF.toInt()
+        paint.textSize = 11f
+        c.drawText(engine.menuSubtitle(), 24f, 62f, paint)
+
+        paint.color = 0xFF1B2639.toInt()
+        panel.set(w - 98f, 18f, w - 18f, 54f)
+        c.drawRoundRect(panel, 12f, 12f, paint)
+        paint.color = 0xFFEAF3FF.toInt()
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = 11f
+        c.drawText("VOLTAR", w - 58f, 40f, paint)
+        paint.textAlign = Paint.Align.LEFT
+
+        when (engine.rooftopScreen()) {
+            RooftopScreen.HOME -> {
+                drawMenuSection(c, 82f, "PORTAL", engine.portalCards(), w)
+                drawMenuSection(c, 292f, "QG", engine.utilityCards(), w)
+            }
+            RooftopScreen.PORTAL -> drawMenuSection(c, 82f, "DESTINOS", engine.portalCards(), w)
+            RooftopScreen.EXPEDITIONS -> drawExpeditions(c, w, h)
+            RooftopScreen.RIFTS -> drawRifts(c, w)
+            RooftopScreen.VERSUS -> drawVersus(c, w)
+            RooftopScreen.WARDROBE -> drawWardrobe(c, w)
+            RooftopScreen.CORES -> drawCores(c, w, h)
+            RooftopScreen.DAILY -> drawDaily(c, w, h)
+            RooftopScreen.EVENTS -> drawEvents(c, w)
+            RooftopScreen.PROFILE -> drawProfile(c, w)
+            RooftopScreen.CRAFTING -> drawCrafting(c, w)
+        }
+    }
+
+    private fun drawMenuSection(c: Canvas, top: Float, label: String, cards: List<com.example.testejuerpg.offline.systems.RooftopCard>, w: Float) {
+        paint.color = 0xFF6B7E98.toInt()
+        paint.textSize = 10f
+        c.drawText(label, 24f, top, paint)
+        cards.forEachIndexed { i, card ->
+            val col = i % 2
+            val row = i / 2
+            val left = 18f + col * ((w - 54f) / 2f)
+            val cardW = (w - 66f) / 2f
+            val y = top + 12f + row * 93f
+            paint.color = 0xFF1A2538.toInt()
+            panel.set(left, y, left + cardW, y + 78f)
+            c.drawRoundRect(panel, 16f, 16f, paint)
+            paint.color = card.accent
+            panel.set(left, y, left + 5f, y + 78f)
+            c.drawRoundRect(panel, 3f, 3f, paint)
+            paint.color = 0xFFFFFFFF.toInt()
+            paint.textSize = 13f
+            c.drawText(card.title, left + 15f, y + 24f, paint)
+            paint.color = 0xFFAEC0D6.toInt()
+            paint.textSize = 9f
+            c.drawText(card.subtitle, left + 15f, y + 42f, paint)
+            paint.color = 0xFF8399B4.toInt()
+            paint.textSize = 8f
+            c.drawText(card.detail.take(34), left + 15f, y + 59f, paint)
+        }
+    }
+
+    private fun drawExpeditions(c: Canvas, w: Float, h: Float) {
+        engine.expeditions().forEachIndexed { i, e ->
+            val y = 84f + i * 78f
+            paint.color = if (i == engine.selectedExpedition()) 0xFF2A3450.toInt() else 0xFF172033.toInt()
+            panel.set(18f, y, w - 18f, y + 66f)
+            c.drawRoundRect(panel, 15f, 15f, paint)
+            paint.color = 0xFF78B9FF.toInt()
+            paint.textSize = 12f
+            c.drawText(e.name + " • " + e.world, 32f, y + 21f, paint)
+            paint.color = 0xFFB0C3DA.toInt()
+            paint.textSize = 8f
+            c.drawText("Dificuldade " + e.difficulty + " • " + e.duration + "s", 32f, y + 37f, paint)
+            c.drawText(e.jobs.take(2).joinToString(" • ") { it.title + " " + it.required }, 32f, y + 52f, paint)
+            paint.color = 0xFF765EFF.toInt()
+            panel.set(w - 118f, y + 14f, w - 30f, y + 52f)
+            c.drawRoundRect(panel, 12f, 12f, paint)
+            paint.color = 0xFFFFFFFF.toInt()
+            paint.textAlign = Paint.Align.CENTER
+            paint.textSize = 9f
+            c.drawText("ENTRAR", w - 74f, y + 37f, paint)
+            paint.textAlign = Paint.Align.LEFT
+        }
+        paint.color = 0xFF8FA5BF.toInt()
+        paint.textSize = 9f
+        c.drawText("Selecione e entre. Tudo continua disponível sem conexão.", 20f, h - 26f, paint)
+    }
+
+    private fun drawRifts(c: Canvas, w: Float) {
+        engine.rifts().forEachIndexed { i, r ->
+            val y = 86f + i * 92f
+            paint.color = if (i == engine.selectedRiftSlot()) 0xFF38284D.toInt() else 0xFF192235.toInt()
+            panel.set(18f, y, w - 18f, y + 76f)
+            c.drawRoundRect(panel, 15f, 15f, paint)
+            paint.color = if (r.goal.type == "monster_arena") 0xFF68E0B1.toInt() else 0xFFB38CFF.toInt()
+            paint.textSize = 13f
+            c.drawText(r.name, 32f, y + 22f, paint)
+            paint.color = 0xFFB0C3DA.toInt()
+            paint.textSize = 9f
+            c.drawText("Dificuldade " + r.difficulty + " • " + r.duration + "s", 32f, y + 40f, paint)
+            c.drawText(r.goal.title + " • " + r.goal.amount, 32f, y + 57f, paint)
+            paint.color = 0xFF8E6EFF.toInt()
+            panel.set(w - 120f, y + 17f, w - 28f, y + 58f)
+            c.drawRoundRect(panel, 12f, 12f, paint)
+            paint.color = 0xFFFFFFFF.toInt()
+            paint.textAlign = Paint.Align.CENTER
+            paint.textSize = 9f
+            c.drawText("ABRIR", w - 74f, y + 42f, paint)
+            paint.textAlign = Paint.Align.LEFT
+        }
+    }
+
+    private fun drawVersus(c: Canvas, w: Float) {
+        engine.bots().forEachIndexed { i, bot ->
+            val y = 84f + i * 84f
+            paint.color = if (i == engine.selectedBot()) 0xFF422A3B.toInt() else 0xFF192235.toInt()
+            panel.set(18f, y, w - 18f, y + 68f)
+            c.drawRoundRect(panel, 15f, 15f, paint)
+            paint.color = 0xFFFF7590.toInt()
+            paint.textSize = 13f
+            c.drawText(bot.name, 32f, y + 22f, paint)
+            paint.color = 0xFFB7C7DB.toInt()
+            paint.textSize = 9f
+            c.drawText("Rival IA • Poder " + bot.difficulty + " • Score " + bot.score, 32f, y + 40f, paint)
+            c.drawText("Vida " + bot.health.toInt() + " • Dano " + bot.attack.toInt(), 32f, y + 56f, paint)
+            paint.color = 0xFFFF5474.toInt()
+            panel.set(w - 120f, y + 16f, w - 28f, y + 53f)
+            c.drawRoundRect(panel, 12f, 12f, paint)
+            paint.color = 0xFFFFFFFF.toInt()
+            paint.textAlign = Paint.Align.CENTER
+            paint.textSize = 9f
+            c.drawText("DESAFIAR", w - 74f, y + 38f, paint)
+            paint.textAlign = Paint.Align.LEFT
+        }
+    }
+
+    private fun drawWardrobe(c: Canvas, w: Float) {
+        engine.styles().forEachIndexed { i, style ->
+            val col = i % 2
+            val row = i / 2
+            val left = 18f + col * ((w - 54f) / 2f)
+            val cardW = (w - 66f) / 2f
+            val y = 82f + row * 72f
+            paint.color = if (i == engine.activeStyleIndex()) 0xFF23444A.toInt() else 0xFF172033.toInt()
+            panel.set(left, y, left + cardW, y + 58f)
+            c.drawRoundRect(panel, 13f, 13f, paint)
+            paint.color = if (style.locked) 0xFF6D7890.toInt() else 0xFF66E7E9.toInt()
+            paint.textSize = 10f
+            c.drawText("STYLE " + (i + 1), left + 12f, y + 18f, paint)
+            paint.color = 0xFFB7C7DB.toInt()
+            paint.textSize = 8f
+            c.drawText(style.outfit + " • " + style.ride, left + 12f, y + 34f, paint)
+            c.drawText(if (style.locked) "BLOQUEADO" else if (i == engine.activeStyleIndex()) "ATIVO" else "EQUIPAR", left + 12f, y + 49f, paint)
+        }
+    }
+
+    private fun drawCores(c: Canvas, w: Float, h: Float) {
+        engine.cores().take(10).forEachIndexed { i, core ->
+            val y = 80f + i * 46f
+            paint.color = 0xFF172033.toInt()
+            panel.set(18f, y, w - 18f, y + 37f)
+            c.drawRoundRect(panel, 10f, 10f, paint)
+            paint.color = 0xFF7FE6A0.toInt()
+            paint.textSize = 9f
+            c.drawText(core.type.name, 30f, y + 15f, paint)
+            paint.color = 0xFFFFFFFF.toInt()
+            paint.textSize = 8f
+            c.drawText("T" + core.tier + " • Carga " + core.charge, 30f, y + 29f, paint)
+            paint.color = 0xFFAEC1D8.toInt()
+            c.drawText(engine.coreBonusLabel(core), w - 168f, y + 22f, paint)
+        }
+        paint.color = 0xFF8FA5BF.toInt()
+        paint.textSize = 9f
+        c.drawText("Toque em um núcleo para equipá-lo na arma atual.", 20f, h - 24f, paint)
+    }
+
+    private fun drawDaily(c: Canvas, w: Float, h: Float) {
+        engine.dailyGoals().forEachIndexed { i, goal ->
+            val y = 84f + i * 61f
+            paint.color = 0xFF172033.toInt()
+            panel.set(18f, y, w - 18f, y + 49f)
+            c.drawRoundRect(panel, 12f, 12f, paint)
+            paint.color = 0xFFFFB36B.toInt()
+            paint.textSize = 10f
+            c.drawText(goal.title, 30f, y + 19f, paint)
+            paint.color = 0xFFB4C6DB.toInt()
+            paint.textSize = 8f
+            c.drawText(goal.description + " • " + goal.rewardEnergy + " Energia", 30f, y + 36f, paint)
+        }
+        val summary = engine.hunterSummary()
+        paint.color = 0xFF9DE6BF.toInt()
+        paint.textSize = 10f
+        c.drawText("Sequência: " + summary.dailyStreak + " dias", 20f, h - 24f, paint)
+    }
+
+    private fun drawEvents(c: Canvas, w: Float) {
+        engine.events().forEachIndexed { i, event ->
+            val y = 86f + i * 70f
+            paint.color = if (i == engine.selectedEvent()) 0xFF4A3B22.toInt() else 0xFF172033.toInt()
+            panel.set(18f, y, w - 18f, y + 56f)
+            c.drawRoundRect(panel, 13f, 13f, paint)
+            paint.color = 0xFFFFC857.toInt()
+            paint.textSize = 11f
+            c.drawText(event.name, 30f, y + 20f, paint)
+            paint.color = 0xFFB6C8DE.toInt()
+            paint.textSize = 8f
+            c.drawText(event.modifier + " • " + event.durationSeconds + "s • x" + event.rewardMultiplier, 30f, y + 37f, paint)
+            paint.color = 0xFFFFA64D.toInt()
+            panel.set(w - 120f, y + 14f, w - 28f, y + 46f)
+            c.drawRoundRect(panel, 10f, 10f, paint)
+            paint.color = 0xFFFFFFFF.toInt()
+            paint.textAlign = Paint.Align.CENTER
+            paint.textSize = 8f
+            c.drawText("ATIVAR", w - 74f, y + 34f, paint)
+            paint.textAlign = Paint.Align.LEFT
+        }
+    }
+
+    private fun drawProfile(c: Canvas, w: Float) {
+        val s = engine.hunterSummary()
+        listOf(
+            "Nível de carreira" to s.careerLevel,
+            "Nível da temporada" to s.seasonLevel,
+            "Energia do caos" to s.chaosEnergy,
+            "Abates" to s.kills,
+            "Chefes" to s.bosses,
+            "Rifts" to s.rifts,
+            "Expedições" to s.expeditions,
+            "Méritos de elite" to s.eliteMerits
+        ).forEachIndexed { i, row ->
+            val y = 86f + i * 40f
+            paint.color = 0xFF172033.toInt()
+            panel.set(22f, y, w - 22f, y + 31f)
+            c.drawRoundRect(panel, 9f, 9f, paint)
+            paint.color = 0xFFB8C9DF.toInt()
+            paint.textSize = 9f
+            c.drawText(row.first, 36f, y + 20f, paint)
+            paint.color = 0xFFFFFFFF.toInt()
+            paint.textAlign = Paint.Align.RIGHT
+            c.drawText(row.second.toString(), w - 36f, y + 20f, paint)
+            paint.textAlign = Paint.Align.LEFT
+        }
+    }
+
+    private fun drawCrafting(c: Canvas, w: Float) {
+        engine.recipes().forEachIndexed { i, recipe ->
+            val y = 84f + i * 64f
+            paint.color = 0xFF172033.toInt()
+            panel.set(18f, y, w - 18f, y + 52f)
+            c.drawRoundRect(panel, 12f, 12f, paint)
+            paint.color = 0xFFD49DFF.toInt()
+            paint.textSize = 10f
+            c.drawText(recipe.name, 30f, y + 18f, paint)
+            paint.color = 0xFFB7C8DD.toInt()
+            paint.textSize = 8f
+            c.drawText("Nível " + recipe.unlockLevel + " • " + recipe.ingredients.entries.joinToString(" + ") { it.key + " " + it.value }, 30f, y + 34f, paint)
+            c.drawText("Resultado: " + recipe.result, 30f, y + 47f, paint)
+        }
+    }
+
     private fun drawLowHpVignette(c: Canvas, w: Float, h: Float) {
         paint.color = 0x223C0A18
         c.drawRect(0f, 0f, w, 28f, paint)
@@ -374,7 +647,82 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
         c.drawRoundRect(RectF(x, y, x + width * fraction.coerceIn(0f, 1f), y + height), height, height, paint)
     }
 
+    private fun handleMenuTap(x: Float, y: Float, w: Float, h: Float) {
+        if (y < 70f || x > w - 120f) {
+            engine.closeRooftopMenu()
+            return
+        }
+        when (engine.rooftopScreen()) {
+            RooftopScreen.HOME -> {
+                if (y in 88f..280f) {
+                    val col = if (x < w / 2f) 0 else 1
+                    val row = ((y - 94f) / 93f).toInt().coerceIn(0, 1)
+                    engine.openRooftopPage(engine.portalCards().getOrNull(row * 2 + col)?.id)
+                } else if (y in 292f..h) {
+                    val col = if (x < w / 2f) 0 else 1
+                    val row = ((y - 304f) / 93f).toInt().coerceAtLeast(0)
+                    engine.openRooftopPage(engine.utilityCards().getOrNull(row * 2 + col)?.id)
+                }
+            }
+            RooftopScreen.PORTAL -> {
+                val col = if (x < w / 2f) 0 else 1
+                val row = ((y - 94f) / 93f).toInt().coerceIn(0, 1)
+                engine.openRooftopPage(engine.portalCards().getOrNull(row * 2 + col)?.id)
+            }
+            RooftopScreen.EXPEDITIONS -> {
+                val index = ((y - 84f) / 78f).toInt()
+                if (index in engine.expeditions().indices) {
+                    if (x > w - 145f) engine.launchExpedition(index) else engine.selectExpedition(index)
+                }
+            }
+            RooftopScreen.RIFTS -> {
+                val index = ((y - 86f) / 92f).toInt()
+                if (index in 0..2) {
+                    if (x > w - 145f) engine.launchRift(index) else engine.selectRiftSlot(index)
+                }
+            }
+            RooftopScreen.VERSUS -> {
+                val index = ((y - 84f) / 84f).toInt()
+                if (index in engine.bots().indices) {
+                    if (x > w - 145f) engine.launchVersus(index) else engine.selectBot(index)
+                }
+            }
+            RooftopScreen.WARDROBE -> {
+                val col = if (x < w / 2f) 0 else 1
+                val row = ((y - 82f) / 72f).toInt()
+                val index = row * 2 + col
+                if (index in engine.styles().indices) {
+                    if (engine.styles()[index].locked) engine.unlockStyle(index) else engine.selectStyle(index)
+                }
+            }
+            RooftopScreen.CORES -> {
+                val index = ((y - 80f) / 46f).toInt()
+                if (index in 0..9) engine.equipVisibleCore(index)
+            }
+            RooftopScreen.EVENTS -> {
+                val index = ((y - 86f) / 70f).toInt()
+                if (index in engine.events().indices) {
+                    engine.selectEvent(index)
+                    if (x > w - 145f) engine.activateEvent()
+                }
+            }
+            RooftopScreen.CRAFTING -> {
+                val index = ((y - 84f) / 64f).toInt()
+                if (index in engine.recipes().indices) engine.craft(index)
+            }
+            RooftopScreen.DAILY, RooftopScreen.PROFILE -> Unit
+        }
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (engine.scene == SceneMode.MENU) {
+            if (event.actionMasked == MotionEvent.ACTION_UP) {
+                handleMenuTap(event.x, event.y, width.toFloat(), height.toFloat())
+                invalidate()
+            }
+            return true
+        }
+
         if (engine.scene == SceneMode.INVENTORY) {
             if (event.actionMasked == MotionEvent.ACTION_UP) {
                 val y = event.y
@@ -400,7 +748,9 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
                 val idx = event.actionIndex
                 val px = event.getX(idx)
                 val py = event.getY(idx)
-                if (px < 180f && py > h - 210f && joystickPointer == -1) {
+                if (px > w - 92f && py < 118f) {
+                    engine.openRooftopMenu()
+                } else if (px < 180f && py > h - 210f && joystickPointer == -1) {
                     joystickPointer = event.getPointerId(idx)
                     updateJoystick(px, py, h)
                 } else if (py > h - 180f && px > w - 140f) {
@@ -415,7 +765,7 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
                 } else if (px > w - 112f && py in 124f..176f) {
                     engine.openInventory()
                 } else if (engine.scene == SceneMode.HUB && py in (h * 0.36f)..(h * 0.45f)) {
-                    engine.startHunt()
+                    engine.openRooftopMenu()
                 }
             }
 
@@ -505,6 +855,11 @@ private class Game3DEngine(private val context: Context) {
     private val vibration: Vibrator? = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     private val prefs = context.getSharedPreferences("teste_jue_3d", Context.MODE_PRIVATE)
     private val hunterDirector = OfflineHunterDirector(2025)
+    private val rooftopController = OfflineRooftopController(hunterDirector)
+
+    private var activityMode = OfflineMode.EXPEDITION
+    private var activityTarget = 12
+    private var activityCompleted = false
 
     private var moveX = 0f
     private var moveY = 0f
@@ -554,11 +909,18 @@ private class Game3DEngine(private val context: Context) {
             updateParticles(dt)
             updateWave(dt)
             if (screenShake > 0f) screenShake = max(0f, screenShake - dt * 2.8f)
-            objectiveText = when {
-                bossActive -> "Derrote o Titã • Núcleos " + aetherCores + "/12"
-                huntKills < 12 -> "Tarefa: " + (12 - huntKills) + " monstros restantes"
-                aetherCores < 12 -> "Tarefa: colete " + (12 - aetherCores) + " Núcleos"
-                else -> "Portal do Titã surgiu • prepare-se"
+            objectiveText = when (activityMode) {
+                OfflineMode.EXPEDITION -> when {
+                    bossActive -> "Derrote o Titã • Núcleos " + aetherCores + "/12"
+                    huntKills < 12 -> "Tarefa: " + (12 - huntKills) + " monstros restantes"
+                    aetherCores < 12 -> "Tarefa: colete " + (12 - aetherCores) + " Núcleos"
+                    else -> "Portal do Titã surgiu • prepare-se"
+                }
+                OfflineMode.RIFT_BOSS -> if (bossActive) "RIFT • derrote o chefe antes do tempo" else "RIFT • preparando chefe"
+                OfflineMode.RIFT_ARENA -> if (!activityCompleted) "RIFT ARENA • " + huntKills + "/" + activityTarget else "RIFT CONCLUÍDO • retorne ao QG"
+                OfflineMode.VERSUS_SIM -> if (!activityCompleted) "VERSUS • score " + rooftopController.versusScore() else "VERSUS VENCIDO • retorne ao QG"
+                OfflineMode.EVENT -> if (!activityCompleted) "EVENTO • " + rooftopController.objectiveSummary() else "EVENTO CONCLUÍDO • retorne ao QG"
+                OfflineMode.TRAINING -> "TREINO • dano livre"
             }
         }
         onUiInvalidate?.invoke()
@@ -585,7 +947,7 @@ private class Game3DEngine(private val context: Context) {
             if (e.dead) continue
             e.hitFlash = max(0f, e.hitFlash - dt)
             if (e.kind == EnemyKind.OVERLOAD_TITAN) {
-                e.phase2 = e.hp <= EnemyKind.OVERLOAD_TITAN.hp * 0.50f
+                e.phase2 = e.hp <= bossMaxHp * 0.50f
                 e.specialTimer = max(0f, e.specialTimer - dt)
                 e.summonTimer = max(0f, e.summonTimer - dt)
                 if (e.phase2 && e.specialTimer <= 0f) {
@@ -702,12 +1064,41 @@ private class Game3DEngine(private val context: Context) {
 
     private fun updateWave(dt: Float) {
         waveTimer += dt
-        if (!bossActive && !bossSpawned && huntKills >= 12 && aetherCores >= 12) spawnBoss()
 
-        if (!bossActive && waveTimer > 2.8f && enemies.count { !it.dead } < 7 && huntKills < 12) {
-            waveTimer = 0f
-            spawnEnemy()
-            if (huntKills % 4 == 3) spawnEnemy(true)
+        when (activityMode) {
+            OfflineMode.EXPEDITION -> {
+                if (!bossActive && !bossSpawned && huntKills >= 12 && aetherCores >= 12) spawnBoss()
+                if (!bossActive && waveTimer > 2.8f && enemies.count { !it.dead } < 7 && huntKills < 12) {
+                    waveTimer = 0f
+                    spawnEnemy()
+                    if (huntKills % 4 == 3) spawnEnemy(true)
+                }
+            }
+            OfflineMode.RIFT_BOSS -> {
+                if (!bossActive && !bossSpawned) spawnBoss()
+            }
+            OfflineMode.RIFT_ARENA, OfflineMode.VERSUS_SIM, OfflineMode.EVENT -> {
+                if (!activityCompleted && waveTimer > 2.4f && enemies.count { !it.dead } < 7) {
+                    waveTimer = 0f
+                    spawnEnemy(activityMode == OfflineMode.VERSUS_SIM && huntKills % 3 == 2)
+                    if (huntKills % 5 == 4) spawnEnemy(true)
+                }
+                if (!activityCompleted && huntKills >= activityTarget) {
+                    activityCompleted = true
+                    if (activityMode == OfflineMode.RIFT_ARENA) hunterDirector.recordRiftComplete()
+                    else if (activityMode == OfflineMode.VERSUS_SIM) hunterDirector.recordExpeditionComplete()
+                    else hunterDirector.recordRiftComplete()
+                    gold += if (activityMode == OfflineMode.EVENT) 180 else 140
+                    addXp(220f)
+                    objectiveText = when (activityMode) {
+                        OfflineMode.RIFT_ARENA -> "RIFT CONCLUÍDO • +140 Ouro"
+                        OfflineMode.VERSUS_SIM -> "VERSUS VENCIDO • +140 Ouro"
+                        else -> "EVENTO CONCLUÍDO • +180 Ouro"
+                    }
+                    save()
+                }
+            }
+            OfflineMode.TRAINING -> Unit
         }
 
         if (bossActive) {
@@ -717,11 +1108,13 @@ private class Game3DEngine(private val context: Context) {
                 bossDead = true
                 bossActive = false
                 bossHp = 0f
-                gold += 250
-                addXp(300f)
-                hunterDirector.recordExpeditionComplete()
-                objectiveText = "EXPEDIÇÃO CONCLUÍDA • +250 Ouro"
+                val isRift = activityMode == OfflineMode.RIFT_BOSS
+                gold += if (isRift) 360 else 250
+                addXp(if (isRift) 420f else 300f)
+                if (isRift) hunterDirector.recordRiftComplete() else hunterDirector.recordExpeditionComplete()
+                objectiveText = if (isRift) "RIFT CONCLUÍDO • +360 Ouro" else "EXPEDIÇÃO CONCLUÍDA • +250 Ouro"
                 spawnBurst(player, 1.2f, floatArrayOf(0.7f, 0.85f, 1f))
+                save()
             }
             if (boss != null && random.nextFloat() < dt * 0.12f && enemies.count { !it.dead } < 9) {
                 spawnEnemy(false)
@@ -763,12 +1156,14 @@ private class Game3DEngine(private val context: Context) {
     private fun spawnBoss() {
         bossSpawned = true
         bossActive = true
-        bossHp = EnemyKind.OVERLOAD_TITAN.hp
+        val difficulty = hunterDirector.rift()?.difficulty ?: 1
+        bossMaxHp = if (activityMode == OfflineMode.RIFT_BOSS) 900f + difficulty * 120f else 900f
+        bossHp = bossMaxHp
         enemies += EnemyEntity(
             nextEnemyId++,
             EnemyKind.OVERLOAD_TITAN,
             V3(0f, 1.55f, -9f),
-            EnemyKind.OVERLOAD_TITAN.hp
+            bossMaxHp
         )
         spawnBurst(V3(0f, 1f, -9f), 1f, floatArrayOf(0.85f, 0.25f, 1f))
         vibrate(90)
@@ -780,7 +1175,7 @@ private class Game3DEngine(private val context: Context) {
         kills += 1
         huntKills += 1
         addXp(if (e.kind == EnemyKind.OVERLOAD_TITAN) 300f else if (e.elite) 28f else 18f)
-        hunterDirector.recordKill(e.kind.name, e.elite, e.kind == EnemyKind.OVERLOAD_TITAN)
+        rooftopController.recordBattleKill(weaponIndex, e.elite, e.kind == EnemyKind.OVERLOAD_TITAN)
         gold += if (e.kind == EnemyKind.OVERLOAD_TITAN) 250 else if (e.elite) 20 else 8
 
         if (e.kind != EnemyKind.OVERLOAD_TITAN) {
@@ -800,6 +1195,10 @@ private class Game3DEngine(private val context: Context) {
     }
 
     private fun takeDamage(amount: Float) {
+        if (random.nextFloat() < hunterDirector.dodgeChance("weapon_" + weaponIndex)) {
+            spawnBurst(player, 0.18f, floatArrayOf(0.35f, 0.9f, 1f))
+            return
+        }
         hp = max(0f, hp - amount)
         screenShake = 0.5f
         vibrate(20)
@@ -816,15 +1215,15 @@ private class Game3DEngine(private val context: Context) {
 
     @Synchronized fun primaryAction() {
         if (scene != SceneMode.HUNT || isDefeated || primaryTimer > 0f) return
-        primaryTimer = WEAPONS[weaponIndex].cooldown
-
         val weapon = WEAPONS[weaponIndex]
+        val weaponId = "weapon_" + weaponIndex
+        primaryTimer = weapon.cooldown * hunterDirector.cooldownMultiplier(weaponId) / hunterDirector.attackSpeedMultiplier(weaponId)
         val target = nearestEnemy(weapon.mainRange) ?: return
 
         if (weaponIndex == 0 || weaponIndex == 3) {
-            meleeAttack(target, weapon.mainDamage, if (weaponIndex == 3) 2.8f else 2.4f)
+            meleeAttack(target, weapon.mainDamage * hunterDirector.damageMultiplier(weaponId), if (weaponIndex == 3) 2.8f else 2.4f)
         } else {
-            fireProjectile(target.pos, weapon.mainDamage, 0.9f + weapon.mainRange * 0.03f)
+            fireProjectile(target.pos, weapon.mainDamage * hunterDirector.damageMultiplier(weaponId), 0.9f + weapon.mainRange * 0.03f)
         }
     }
 
@@ -838,11 +1237,11 @@ private class Game3DEngine(private val context: Context) {
     }
 
     private fun skill1() {
-        skillTimers[0] = if (weaponIndex == 1) 4.0f else 3.0f
+        skillTimers[0] = (if (weaponIndex == 1) 4.0f else 3.0f) * hunterDirector.cooldownMultiplier("weapon_" + weaponIndex)
         if (weaponIndex == 1) {
             repeat(3) {
                 val t = nearestEnemy(11f)
-                if (t != null) fireProjectile(t.pos, 46f, 1.15f)
+                if (t != null) fireProjectile(t.pos, 46f * hunterDirector.damageMultiplier("weapon_" + weaponIndex), 1.15f)
             }
         } else {
             dash()
@@ -850,7 +1249,7 @@ private class Game3DEngine(private val context: Context) {
     }
 
     private fun skill2() {
-        skillTimers[1] = 6.0f
+        skillTimers[1] = 6.0f * hunterDirector.cooldownMultiplier("weapon_" + weaponIndex)
         val radius = when (weaponIndex) {
             0 -> 3.3f
             2 -> 3.8f
@@ -862,12 +1261,12 @@ private class Game3DEngine(private val context: Context) {
             3 -> 82f
             else -> 58f
         }
-        if (weaponIndex == 1) dash() else areaAttack(radius, damage)
+        if (weaponIndex == 1) dash() else areaAttack(radius, damage * hunterDirector.damageMultiplier("weapon_" + weaponIndex))
     }
 
     private fun skill3() {
-        skillTimers[2] = 12.0f
-        hp = min(maxHp, hp + maxHp * 0.36f)
+        skillTimers[2] = 12.0f * hunterDirector.cooldownMultiplier("weapon_" + weaponIndex)
+        hp = min(maxHp, hp + maxHp * 0.36f * hunterDirector.healingMultiplier("weapon_" + weaponIndex))
         spawnBurst(player, 0.65f, floatArrayOf(0.4f, 1f, 0.7f))
         vibrate(34)
     }
@@ -982,15 +1381,15 @@ private class Game3DEngine(private val context: Context) {
         save()
     }
 
-    fun startHunt() {
-        if (scene == SceneMode.INVENTORY) return
-        hunterDirector.enterExpedition(0)
+    fun startHunt() = launchExpedition(0)
+
+    private fun beginBattle() {
         scene = SceneMode.HUNT
         isDefeated = false
         bossActive = false
         bossSpawned = false
         bossDead = false
-        bossHp = bossMaxHp
+        activityCompleted = false
         huntKills = 0
         enemies.clear()
         projectiles.clear()
@@ -1000,13 +1399,68 @@ private class Game3DEngine(private val context: Context) {
         player.x = 0f
         player.z = 4f
         hp = maxHp
-        waveTimer = 3f
-        repeat(3) { spawnEnemy() }
-        objectiveText = "Tarefa: derrote 12 monstros"
+        waveTimer = 1.5f
+
+        when (activityMode) {
+            OfflineMode.EXPEDITION -> {
+                activityTarget = 12
+                bossMaxHp = 900f
+                repeat(3) { spawnEnemy() }
+                objectiveText = "Tarefa: derrote 12 monstros"
+            }
+            OfflineMode.RIFT_BOSS -> {
+                activityTarget = 1
+                bossMaxHp = 900f
+                spawnBoss()
+                objectiveText = "RIFT • derrote o chefe"
+            }
+            OfflineMode.RIFT_ARENA -> {
+                val difficulty = hunterDirector.rift()?.difficulty ?: 4
+                activityTarget = 8 + difficulty
+                repeat(4) { spawnEnemy() }
+                objectiveText = "RIFT ARENA • sobreviva às ondas"
+            }
+            OfflineMode.VERSUS_SIM -> {
+                activityTarget = 10
+                repeat(4) { spawnEnemy(true) }
+                objectiveText = "VERSUS • supere a arena offline"
+            }
+            OfflineMode.EVENT -> {
+                activityTarget = 14
+                repeat(3) { spawnEnemy() }
+                objectiveText = "EVENTO • atividade especial"
+            }
+            OfflineMode.TRAINING -> {
+                activityTarget = Int.MAX_VALUE
+                objectiveText = "TREINO • ataque livre"
+            }
+        }
         save()
     }
 
+    fun launchExpedition(index: Int) {
+        rooftopController.selectExpedition(index)
+        rooftopController.enterSelectedExpedition()
+        activityMode = OfflineMode.EXPEDITION
+        beginBattle()
+    }
+
+    fun launchRift(slot: Int) {
+        rooftopController.selectRift(0, slot)
+        rooftopController.enterSelectedRift()
+        activityMode = hunterDirector.mode()
+        beginBattle()
+    }
+
+    fun launchVersus(bot: Int) {
+        rooftopController.selectBot(bot)
+        rooftopController.enterVersus()
+        activityMode = OfflineMode.VERSUS_SIM
+        beginBattle()
+    }
+
     fun returnToHub() {
+        rooftopController.backToHome()
         scene = SceneMode.HUB
         isDefeated = false
         bossActive = false
@@ -1020,6 +1474,107 @@ private class Game3DEngine(private val context: Context) {
         objectiveText = "Portal pronto • escolha uma caçada"
         save()
     }
+
+    fun openRooftopMenu() {
+        if (scene == SceneMode.HUNT && !isDefeated) return
+        scene = SceneMode.MENU
+        rooftopController.navigate(RooftopScreen.HOME)
+        invalidateUi()
+    }
+
+    fun closeRooftopMenu() {
+        if (scene == SceneMode.MENU) scene = SceneMode.HUB
+        rooftopController.backToHome()
+        save()
+        invalidateUi()
+    }
+
+    fun rooftopScreen(): RooftopScreen = rooftopController.screen
+    fun portalCards() = rooftopController.portalCards()
+    fun utilityCards() = rooftopController.utilityCards()
+    fun expeditions() = hunterDirector.buildExpeditions()
+    fun rifts() = hunterDirector.buildRiftSet(0)
+    fun bots() = rooftopController.bots()
+    fun styles() = rooftopController.styles()
+    fun cores() = rooftopController.cores()
+    fun dailyGoals() = rooftopController.dailyGoals()
+    fun events() = rooftopController.events()
+    fun recipes() = rooftopController.recipes()
+    fun hunterSummary() = hunterDirector.hunter()
+    fun selectedExpedition() = rooftopController.selectedExpedition
+    fun selectedRiftSlot() = rooftopController.selectedRiftSlot
+    fun selectedEvent() = rooftopController.selectedEvent
+    fun selectedBot() = rooftopController.selectedBot
+    fun activeStyleIndex() = rooftopController.selectedStyle
+    fun coreBonusLabel(core: com.example.testejuerpg.offline.OfflineUpgradeCore) = rooftopController.coreBonusLabel(core)
+
+    fun selectExpedition(index: Int) { rooftopController.selectExpedition(index) }
+    fun selectRiftSlot(index: Int) { rooftopController.selectRift(0, index) }
+    fun selectEvent(index: Int) { rooftopController.selectEvent(index) }
+    fun selectBot(index: Int) { rooftopController.selectBot(index) }
+    fun selectStyle(index: Int) { if (rooftopController.selectStyle(index)) save() }
+    fun unlockStyle(index: Int) { if (rooftopController.unlockStyle(index)) save() }
+    fun equipVisibleCore(index: Int) {
+        val core = rooftopController.cores().getOrNull(index) ?: return
+        if (rooftopController.equipCore("weapon_" + weaponIndex, core)) save()
+    }
+    fun activateEvent() {
+        if (rooftopController.activateEvent()) {
+            activityMode = OfflineMode.EVENT
+            beginBattle()
+        }
+    }
+    fun craft(index: Int) {
+        val recipe = rooftopController.recipes().getOrNull(index) ?: return
+        if (hunterDirector.craft(recipe.id)) save()
+    }
+
+    fun menuTitle(): String = when (rooftopController.screen) {
+        RooftopScreen.HOME -> "QG NO TERRAÇO"
+        RooftopScreen.PORTAL -> "PORTAL"
+        RooftopScreen.EXPEDITIONS -> "EXPEDIÇÕES"
+        RooftopScreen.RIFTS -> "RIFTS"
+        RooftopScreen.VERSUS -> "VERSUS"
+        RooftopScreen.WARDROBE -> "ARMÁRIO"
+        RooftopScreen.CORES -> "NÚCLEOS DE MELHORIA"
+        RooftopScreen.DAILY -> "OBJETIVOS DIÁRIOS"
+        RooftopScreen.EVENTS -> "EVENTOS"
+        RooftopScreen.PROFILE -> "PERFIL DO CAÇADOR"
+        RooftopScreen.CRAFTING -> "OFICINA"
+    }
+
+    fun menuSubtitle(): String = when (rooftopController.screen) {
+        RooftopScreen.HOME -> "Hub offline • portal, armário, progresso e oficina"
+        RooftopScreen.PORTAL -> "Selecione o destino da próxima caça"
+        RooftopScreen.EXPEDITIONS -> "Jobs, mundos e recompensas"
+        RooftopScreen.RIFTS -> "Três fendas por conjunto • contra o tempo"
+        RooftopScreen.VERSUS -> "Rivais simulados pela IA local"
+        RooftopScreen.WARDROBE -> "Doze estilos salvos"
+        RooftopScreen.CORES -> "Níveis 1–4 • equipar e fundir"
+        RooftopScreen.DAILY -> "Energia e sequência diária"
+        RooftopScreen.EVENTS -> "Modificadores especiais"
+        RooftopScreen.PROFILE -> "Carreira e temporada"
+        RooftopScreen.CRAFTING -> "Armas, gadgets, armaduras e rides"
+    }
+
+    fun openRooftopPage(id: String?) {
+        when (id) {
+            "expeditions" -> rooftopController.navigate(RooftopScreen.EXPEDITIONS)
+            "rifts" -> rooftopController.navigate(RooftopScreen.RIFTS)
+            "versus" -> rooftopController.navigate(RooftopScreen.VERSUS)
+            "events" -> rooftopController.navigate(RooftopScreen.EVENTS)
+            "wardrobe" -> rooftopController.navigate(RooftopScreen.WARDROBE)
+            "cores" -> rooftopController.navigate(RooftopScreen.CORES)
+            "daily" -> rooftopController.navigate(RooftopScreen.DAILY)
+            "crafting" -> rooftopController.navigate(RooftopScreen.CRAFTING)
+            "profile" -> rooftopController.navigate(RooftopScreen.PROFILE)
+            else -> return
+        }
+        scene = SceneMode.MENU
+        invalidateUi()
+    }
+
+    private fun invalidateUi() = onUiInvalidate?.invoke()
 
     private fun addXp(amount: Float) {
         xp += amount
@@ -1186,7 +1741,7 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
         GLES20.glUniform1f(fogDensityHandle, 0.015f)
         GLES20.glUniformMatrix4fv(viewHandle, 1, false, view, 0)
 
-        if (engine.scene == SceneMode.HUB) drawHub() else drawHunt()
+        if (engine.scene == SceneMode.HUB || engine.scene == SceneMode.MENU) drawHub() else drawHunt()
         engine.snapshotParticles().forEach {
             drawSphere(it.pos.x, it.pos.y, it.pos.z, it.scale, it.color)
         }
