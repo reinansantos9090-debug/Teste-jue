@@ -7,7 +7,7 @@ import com.example.testejuerpg.offline.OfflineUpgradeCore
 import kotlin.math.max
 
 enum class RooftopScreen {
-    HOME, PORTAL, EXPEDITIONS, RIFTS, VERSUS, WARDROBE, CORES, DAILY, EVENTS, PROFILE, CRAFTING
+    HOME, PORTAL, EXPEDITIONS, RIFTS, VERSUS, WARDROBE, CORES, DAILY, EVENTS, PROFILE, CRAFTING, STORY
 }
 
 data class RooftopCard(
@@ -84,7 +84,8 @@ class OfflineRooftopController(private val director: OfflineHunterDirector) {
         RooftopCard("cores", "NÚCLEOS", "4 níveis", "Equipar, trocar e fundir núcleos.", 0xFF74D86D.toInt()),
         RooftopCard("daily", "OBJETIVOS", "Sequência", "Objetivos diários e bônus de sequência.", 0xFFFFAA66.toInt()),
         RooftopCard("crafting", "OFICINA", "Criação", "Armas, gadgets, armaduras e rides.", 0xFFD5A0FF.toInt()),
-        RooftopCard("profile", "PERFIL", "Carreira", "Nível, energia, abates e progresso.", 0xFF95A6FF.toInt())
+        RooftopCard("profile", "PERFIL", "Carreira", "Nível, energia, abates e progresso.", 0xFF95A6FF.toInt()),
+        RooftopCard("story", "HISTÓRIA", "Campanha offline", "30 capítulos com diálogos, objetivos e chefes.", 0xFFFF7BC8.toInt())
     )
 
     fun selectExpedition(index: Int) {
@@ -251,5 +252,6 @@ class OfflineRooftopController(private val director: OfflineHunterDirector) {
         OfflineMode.VERSUS_SIM -> "Versus offline • supere a pontuação do rival"
         OfflineMode.EVENT -> activeEvent()?.name ?: "Evento ativo"
         OfflineMode.TRAINING -> "Treino • sem pressão"
+        OfflineMode.STORY -> "HISTÓRIA • campanha offline persistente"
     }
 }

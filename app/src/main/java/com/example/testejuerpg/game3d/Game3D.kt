@@ -29,6 +29,8 @@ import com.example.testejuerpg.offline.systems.OfflineHunterDirector
 import com.example.testejuerpg.offline.systems.OfflineRooftopController
 import com.example.testejuerpg.offline.systems.RooftopScreen
 import com.example.testejuerpg.offline.OfflineMode
+import com.example.testejuerpg.offline.systems.OfflineStoryCampaign
+import com.example.testejuerpg.offline.systems.OfflineBiomeCatalog
 
 private data class V3(var x: Float, var y: Float, var z: Float) {
     fun set(other: V3) { x = other.x; y = other.y; z = other.z }
@@ -137,7 +139,7 @@ private class GameGLView(context: Context, private val engine: Game3DEngine) : G
     private val renderer = GameRenderer(engine)
 
     init {
-        setEGLContextClientVersion(2)
+        setEGLContextClientVersion(MobileRenderProfile.detect(context).glesVersion)
         setRenderer(renderer)
         renderMode = RENDERMODE_CONTINUOUSLY
         keepScreenOn = true
@@ -366,6 +368,7 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
             RooftopScreen.EVENTS -> drawEvents(c, w)
             RooftopScreen.PROFILE -> drawProfile(c, w)
             RooftopScreen.CRAFTING -> drawCrafting(c, w)
+            RooftopScreen.STORY -> drawStory(c, w, h)
         }
     }
 
@@ -596,6 +599,55 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
         }
     }
 
+    private fun drawStory(c: Canvas, w: Float, h: Float) {
+        val s = engine.storySnapshot()
+        paint.color = 0xFF172033.toInt()
+        panel.set(18f, 82f, w - 18f, h - 154f)
+        c.drawRoundRect(panel, 18f, 18f, paint)
+        paint.color = 0xFFFF7BC8.toInt()
+        paint.textSize = 10f
+        c.drawText("CAPÍTULO " + s.chapterNumber + " • " + s.location, 32f, 106f, paint)
+        paint.color = 0xFFFFFFFF.toInt()
+        paint.textSize = 21f
+        c.drawText(s.chapterTitle, 32f, 136f, paint)
+        paint.color = 0xFFB8C9DE.toInt()
+        paint.textSize = 10f
+        c.drawText(s.synopsis, 32f, 158f, paint)
+        paint.color = 0xFF8CA1BC.toInt()
+        paint.textSize = 9f
+        c.drawText("CENA " + s.beatNumber + "/" + s.beatTotal, 32f, 184f, paint)
+        paint.color = 0xFFEAF2FC.toInt()
+        paint.textSize = 15f
+        c.drawText(s.speaker, 32f, 214f, paint)
+        paint.color = 0xFFCBD8E8.toInt()
+        paint.textSize = 13f
+        var line = ""
+        var lineY = 242f
+        s.text.split(" ").forEach { word ->
+            val candidate = if (line.isEmpty()) word else line + " " + word
+            if (paint.measureText(candidate) > w - 70f) {
+                c.drawText(line, 32f, lineY, paint)
+                line = word
+                lineY += 24f
+            } else line = candidate
+        }
+        if (line.isNotEmpty()) c.drawText(line, 32f, lineY, paint)
+        paint.color = 0xFF7890AC.toInt()
+        paint.textSize = 10f
+        c.drawText("Objetivo: " + s.objective + " • " + s.progress + "/" + s.required, 32f, h - 184f, paint)
+        paint.color = 0xFF6B4C9A.toInt()
+        panel.set(22f, h - 138f, w - 22f, h - 76f)
+        c.drawRoundRect(panel, 17f, 17f, paint)
+        paint.color = 0xFFFFFFFF.toInt()
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = 14f
+        c.drawText(if (s.readyForBattle) "INICIAR MISSÃO DO CAPÍTULO" else "AVANÇAR HISTÓRIA", w / 2f, h - 100f, paint)
+        paint.textAlign = Paint.Align.LEFT
+        paint.color = 0xFF9AAECC.toInt()
+        paint.textSize = 9f
+        c.drawText("Campanha persistente • " + s.completedChapters + "/30 capítulos concluídos", 22f, h - 44f, paint)
+    }
+
     private fun drawLowHpVignette(c: Canvas, w: Float, h: Float) {
         paint.color = 0x223C0A18
         c.drawRect(0f, 0f, w, 28f, paint)
@@ -711,6 +763,11 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
                 if (index in engine.recipes().indices) engine.craft(index)
             }
             RooftopScreen.DAILY, RooftopScreen.PROFILE -> Unit
+            RooftopScreen.STORY -> {
+                if (y > h - 150f) {
+                    if (engine.storySnapshot().readyForBattle) engine.launchStory() else engine.advanceStoryBeat()
+                }
+            }
         }
     }
 
@@ -856,6 +913,11 @@ private class Game3DEngine(private val context: Context) {
     private val prefs = context.getSharedPreferences("teste_jue_3d", Context.MODE_PRIVATE)
     private val hunterDirector = OfflineHunterDirector(2025)
     private val rooftopController = OfflineRooftopController(hunterDirector)
+    private val storyCampaign = OfflineStoryCampaign(context)
+    private val renderProfile = MobileRenderProfile.detect(context)
+    private val performanceGovernor = MobilePerformanceGovernor(renderProfile)
+    private val performanceTelemetry = OfflinePerformanceTelemetry()
+    private val audioBus = OfflineAudioBus()
 
     private var activityMode = OfflineMode.EXPEDITION
     private var activityTarget = 12
@@ -921,6 +983,7 @@ private class Game3DEngine(private val context: Context) {
                 OfflineMode.VERSUS_SIM -> if (!activityCompleted) "VERSUS • score " + rooftopController.versusScore() else "VERSUS VENCIDO • retorne ao QG"
                 OfflineMode.EVENT -> if (!activityCompleted) "EVENTO • " + rooftopController.objectiveSummary() else "EVENTO CONCLUÍDO • retorne ao QG"
                 OfflineMode.TRAINING -> "TREINO • dano livre"
+            OfflineMode.STORY -> storyObjectiveText()
             }
         }
         onUiInvalidate?.invoke()
@@ -1040,6 +1103,10 @@ private class Game3DEngine(private val context: Context) {
                 if (d.type == 0) {
                     aetherCores += 1
                     hunterDirector.recordCore(1)
+                    if (activityMode == OfflineMode.STORY) {
+                        storyCampaign.recordCore()
+                        checkStoryObjective()
+                    }
                 } else gold += 8
                 spawnBurst(
                     d.pos,
@@ -1099,6 +1166,9 @@ private class Game3DEngine(private val context: Context) {
                 }
             }
             OfflineMode.TRAINING -> Unit
+            OfflineMode.STORY -> {
+                if (!activityCompleted && storyCampaign.objectiveComplete()) checkStoryObjective()
+            }
         }
 
         if (bossActive) {
@@ -1144,6 +1214,7 @@ private class Game3DEngine(private val context: Context) {
         val angle = random.nextFloat() * 6.283f
         val distance = 8f + random.nextFloat() * 8f
         val pos = V3(cos(angle) * distance, if (kind == EnemyKind.SCRAP_GOLEM) 1.0f else 0.65f, sin(angle) * distance)
+        if (enemies.count { !it.dead } >= performanceGovernor.allowedEnemies()) return
         enemies += EnemyEntity(
             nextEnemyId++,
             kind,
@@ -1176,6 +1247,14 @@ private class Game3DEngine(private val context: Context) {
         huntKills += 1
         addXp(if (e.kind == EnemyKind.OVERLOAD_TITAN) 300f else if (e.elite) 28f else 18f)
         rooftopController.recordBattleKill(weaponIndex, e.elite, e.kind == EnemyKind.OVERLOAD_TITAN)
+        if (activityMode == OfflineMode.STORY) {
+            if (storyCampaign.currentChapter().objectiveKind == "ARENA") {
+                storyCampaign.recordArenaWave()
+            } else {
+                storyCampaign.recordKill(storyTargetId(e), e.elite, e.kind == EnemyKind.OVERLOAD_TITAN)
+            }
+            checkStoryObjective()
+        }
         gold += if (e.kind == EnemyKind.OVERLOAD_TITAN) 250 else if (e.elite) 20 else 8
 
         if (e.kind != EnemyKind.OVERLOAD_TITAN) {
@@ -1339,7 +1418,9 @@ private class Game3DEngine(private val context: Context) {
     }
 
     private fun spawnBurst(origin: V3, size: Float, color: FloatArray) {
-        repeat((7 + size * 8).toInt().coerceAtMost(32)) {
+        val room = (performanceGovernor.allowedParticles() - particles.size).coerceAtLeast(0)
+        val count = (7 + size * 8).toInt().coerceAtMost(32).coerceAtMost(room)
+        repeat(count) {
             val a = random.nextFloat() * 6.283f
             val speed = (0.7f + random.nextFloat() * 2.2f) * size
             particles += Particle(
@@ -1382,6 +1463,57 @@ private class Game3DEngine(private val context: Context) {
     }
 
     fun startHunt() = launchExpedition(0)
+
+    fun storySnapshot() = storyCampaign.snapshot()
+
+    fun advanceStoryBeat() {
+        if (storyCampaign.advanceBeat()) {
+            audioBus.play("story")
+            invalidateUi()
+        }
+    }
+
+    fun launchStory() {
+        if (!storyCampaign.startBattle()) return
+        activityMode = OfflineMode.STORY
+        beginBattle()
+    }
+
+    private fun storyObjectiveText(): String {
+        val s = storyCampaign.snapshot()
+        return "HISTÓRIA • " + s.chapterTitle + " • " + s.progress + "/" + s.required
+    }
+
+    private fun beginStoryBattleSetup() {
+        val chapter = storyCampaign.currentChapter()
+        activityTarget = chapter.targetCount
+        objectiveText = "HISTÓRIA • " + chapter.title + " • " + chapter.synopsis
+        when (chapter.objectiveKind) {
+            "BOSS" -> spawnBoss()
+            "CORE", "ARENA" -> repeat(4) { spawnEnemy() }
+            "ELITE" -> repeat(4) { spawnEnemy(true) }
+            else -> repeat(4) { spawnEnemy() }
+        }
+        audioBus.play("story")
+    }
+
+    private fun storyTargetId(e: EnemyEntity): String = when (e.kind) {
+        EnemyKind.AETHER_SLIME -> "slime"
+        EnemyKind.NEON_STALKER -> "stalker"
+        EnemyKind.SCRAP_GOLEM -> "golem"
+        EnemyKind.OVERLOAD_TITAN -> "boss"
+    }
+
+    private fun checkStoryObjective() {
+        if (activityMode != OfflineMode.STORY || activityCompleted || !storyCampaign.objectiveComplete()) return
+        val completed = storyCampaign.completeBattle() ?: return
+        activityCompleted = true
+        gold += completed.rewardGold
+        addXp(260f + completed.number * 12f)
+        audioBus.play("level")
+        objectiveText = "CAPÍTULO " + completed.number + " CONCLUÍDO • +" + completed.rewardGold + " Ouro"
+        save()
+    }
 
     private fun beginBattle() {
         scene = SceneMode.HUNT
@@ -1434,6 +1566,7 @@ private class Game3DEngine(private val context: Context) {
                 activityTarget = Int.MAX_VALUE
                 objectiveText = "TREINO • ataque livre"
             }
+            OfflineMode.STORY -> beginStoryBattleSetup()
         }
         save()
     }
@@ -1541,6 +1674,7 @@ private class Game3DEngine(private val context: Context) {
         RooftopScreen.EVENTS -> "EVENTOS"
         RooftopScreen.PROFILE -> "PERFIL DO CAÇADOR"
         RooftopScreen.CRAFTING -> "OFICINA"
+        RooftopScreen.STORY -> "HISTÓRIA — AETHERIA: ECHOS"
     }
 
     fun menuSubtitle(): String = when (rooftopController.screen) {
@@ -1555,6 +1689,7 @@ private class Game3DEngine(private val context: Context) {
         RooftopScreen.EVENTS -> "Modificadores especiais"
         RooftopScreen.PROFILE -> "Carreira e temporada"
         RooftopScreen.CRAFTING -> "Armas, gadgets, armaduras e rides"
+        RooftopScreen.STORY -> "30 capítulos • diálogo persistente • chefes e decisões de combate"
     }
 
     fun openRooftopPage(id: String?) {
@@ -1568,6 +1703,7 @@ private class Game3DEngine(private val context: Context) {
             "daily" -> rooftopController.navigate(RooftopScreen.DAILY)
             "crafting" -> rooftopController.navigate(RooftopScreen.CRAFTING)
             "profile" -> rooftopController.navigate(RooftopScreen.PROFILE)
+            "story" -> rooftopController.navigate(RooftopScreen.STORY)
             else -> return
         }
         scene = SceneMode.MENU
@@ -1632,6 +1768,27 @@ private class Game3DEngine(private val context: Context) {
         }
     }
 
+    fun activeBiome(): com.example.testejuerpg.offline.systems.OfflineBiome {
+        return OfflineBiomeCatalog.forWorld(
+            hunterDirector.expedition()?.world
+                ?: hunterDirector.rift()?.setId
+                ?: storyCampaign.currentChapter().location
+        )
+    }
+
+    fun allowedFireflies(): Int = performanceGovernor.allowedFireflies()
+    fun renderProfile(): MobileRenderProfile = renderProfile
+
+    fun recordRenderFrame(frameMs: Float, drawCalls: Int) {
+        performanceGovernor.sample(frameMs)
+        performanceTelemetry.record(
+            frameMs, drawCalls, snapshotEnemies().size,
+            snapshotParticles().size, snapshotProjectiles().size
+        )
+    }
+
+    fun performanceSnapshot(): PerformanceSnapshot = performanceTelemetry.snapshot()
+
     fun snapshotEnemies(): List<EnemyEntity> = enemies.filterNot { it.dead }
     fun snapshotProjectiles(): List<Projectile> = projectiles.toList()
     fun snapshotDrops(): List<Drop> = drops.toList()
@@ -1682,9 +1839,9 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
         fogDensityHandle = GLES20.glGetUniformLocation(program, "uFogDensity")
 
         meshes["cube"] = Mesh.cube()
-        meshes["sphere"] = Mesh.sphere(16, 10)
-        meshes["cylinder"] = Mesh.cylinder(16)
-        meshes["torus"] = Mesh.torus(24, 8)
+        meshes["sphere"] = Mesh.sphere(engine.renderProfile().sphereSegments, engine.renderProfile().sphereRings)
+        meshes["cylinder"] = Mesh.cylinder(engine.renderProfile().sphereSegments)
+        meshes["torus"] = Mesh.torus(engine.renderProfile().torusSegments, engine.renderProfile().torusTubeSegments)
         meshes["plane"] = Mesh.plane()
     }
 
@@ -1699,7 +1856,11 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
         Matrix.perspectiveM(projection, 0, 58f, width.toFloat() / height.toFloat(), 0.1f, 70f)
     }
 
+    private var drawCalls = 0
+
     override fun onDrawFrame(gl: javax.microedition.khronos.opengles.GL10?) {
+        val frameStart = System.nanoTime()
+        drawCalls = 0
         engine.tick()
         time += 0.016f
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
@@ -1738,13 +1899,14 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
             val b = 0.13f + night * 0.04f
             GLES20.glUniform4f(fogColorHandle, r.coerceAtLeast(0.02f), g.coerceAtLeast(0.03f), b, 1f)
         }
-        GLES20.glUniform1f(fogDensityHandle, 0.015f)
+        GLES20.glUniform1f(fogDensityHandle, engine.renderProfile().fogDensity)
         GLES20.glUniformMatrix4fv(viewHandle, 1, false, view, 0)
 
         if (engine.scene == SceneMode.HUB || engine.scene == SceneMode.MENU) drawHub() else drawHunt()
         engine.snapshotParticles().forEach {
             drawSphere(it.pos.x, it.pos.y, it.pos.z, it.scale, it.color)
         }
+        engine.recordRenderFrame((System.nanoTime() - frameStart) / 1_000_000f, drawCalls)
     }
 
     private fun drawHub() {
@@ -1768,7 +1930,8 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
     }
 
     private fun drawHunt() {
-        drawCube(0f, -0.14f, 0f, 44f, 0.25f, 44f, floatArrayOf(0.17f, 0.28f, 0.20f))
+        val biome = engine.activeBiome()
+        drawCube(0f, -0.14f, 0f, 44f, 0.25f, 44f, floatArrayOf(biome.groundR, biome.groundG, biome.groundB))
         val seeds = intArrayOf(2, 5, 8, 11, 15, 19, 23, 29, 31, 37, 41, 43)
         for (i in seeds.indices) {
             val x = ((seeds[i] * 7) % 34 - 17).toFloat()
@@ -1895,6 +2058,7 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
         color: FloatArray
     ) {
         val mesh = meshes[name] ?: return
+        drawCalls += 1
         Matrix.setIdentityM(model, 0)
         Matrix.translateM(model, 0, x, y, z)
         Matrix.scaleM(model, 0, sx, sy, sz)

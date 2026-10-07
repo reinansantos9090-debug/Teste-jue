@@ -23,7 +23,8 @@ enum class OfflineMode {
     RIFT_ARENA,
     VERSUS_SIM,
     EVENT,
-    TRAINING
+    TRAINING,
+    STORY
 }
 
 enum class OfflineCoreType {
