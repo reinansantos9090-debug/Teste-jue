@@ -1,5 +1,7 @@
 package com.example.testejuerpg.offline.systems
 
+import android.content.SharedPreferences
+
 import com.example.testejuerpg.offline.OfflineCoreType
 import com.example.testejuerpg.offline.OfflineDailyGoal
 import com.example.testejuerpg.offline.OfflineEventDefinition
@@ -373,11 +375,14 @@ class OfflineHunterDirector(seed: Int = 2025) {
     }
 
     fun equipCore(weaponId: String, coreId: String): Boolean {
-        val core = cores.firstOrNull { it.id == coreId } ?: return false
+        val core = cores.firstOrNull { it.id == coreId }
+            ?: equipped.values.firstOrNull { it.id == coreId }
+            ?: return false
         val old = equipped[weaponId]
         if (old != null && old.tier > core.tier) return false
         if (old != null) cores += old
         cores.remove(core)
+        equipped.entries.removeIf { it.key == weaponId }
         equipped[weaponId] = core
         return true
     }
@@ -410,6 +415,129 @@ class OfflineHunterDirector(seed: Int = 2025) {
     fun maxHealthMultiplier(weaponId: String): Float {
         val core = equipped[weaponId] ?: return 1f
         return if (core.type == OfflineCoreType.MAX_HEALTH) 1f + core.bonus else 1f
+    }
+
+    fun grantStoryReward(energy: Int, rewardGold: Int) {
+        hunter = hunter.copy(
+            chaosEnergy = hunter.chaosEnergy + max(0, energy)
+        )
+        materials["story_token"] = (materials["story_token"] ?: 0) + max(0, rewardGold / 25)
+        updateCareerProgress(max(1, energy / 40))
+    }
+
+    private fun updateCareerProgress(points: Int) {
+        var level = hunter.careerLevel
+        var remaining = hunter.eliteMerits + max(0, points)
+        while (remaining >= 100) {
+            remaining -= 100
+            level += 1
+        }
+        hunter = hunter.copy(
+            careerLevel = level,
+            eliteMerits = remaining
+        )
+    }
+
+    fun saveTo(prefs: SharedPreferences) {
+        val edit = prefs.edit()
+            .putInt("director_schema", 1)
+            .putString("director_name", hunter.name)
+            .putInt("career_level", hunter.careerLevel)
+            .putInt("season_level", hunter.seasonLevel)
+            .putInt("chaos_energy", hunter.chaosEnergy)
+            .putInt("elite_merits", hunter.eliteMerits)
+            .putInt("elite_stars", hunter.eliteStars)
+            .putInt("perk_tokens", hunter.perkTokens)
+            .putInt("merch_credits", hunter.merchCredits)
+            .putInt("elite_merch_credits", hunter.eliteMerchCredits)
+            .putInt("daily_streak", hunter.dailyStreak)
+            .putInt("director_kills", hunter.kills)
+            .putInt("director_bosses", hunter.bosses)
+            .putInt("director_rifts", hunter.rifts)
+            .putInt("director_expeditions", hunter.expeditions)
+            .putString("active_ride", activeRide)
+            .putInt("active_style", activeStyle)
+            .putString("materials", materials.entries.joinToString(";") { it.key + "=" + it.value })
+            .putString("daily_progress", dailyProgressMap.entries.joinToString(";") { it.key + "=" + it.value })
+            .putString("unlocked_styles", styles.withIndex().filter { !it.value.locked }.joinToString(",") { it.index.toString() })
+            .putString("cores", cores.joinToString(";") { core ->
+                listOf(core.id, core.type.name, core.tier.toString(), core.charge.toString(), core.bonus.toString()).joinToString(",")
+            })
+            .putString("equipped_cores", equipped.entries.joinToString(";") { (weapon, core) ->
+                listOf(weapon, core.id, core.type.name, core.tier.toString(), core.charge.toString(), core.bonus.toString()).joinToString(",")
+            })
+        edit.apply()
+    }
+
+    fun loadFrom(prefs: SharedPreferences) {
+        if (prefs.getInt("director_schema", 0) <= 0) return
+        hunter = OfflineHunterProfile(
+            name = prefs.getString("director_name", "Caçador") ?: "Caçador",
+            careerLevel = prefs.getInt("career_level", 1).coerceAtLeast(1),
+            seasonLevel = prefs.getInt("season_level", 1).coerceAtLeast(1),
+            chaosEnergy = prefs.getInt("chaos_energy", 0).coerceAtLeast(0),
+            eliteMerits = prefs.getInt("elite_merits", 0).coerceAtLeast(0),
+            eliteStars = prefs.getInt("elite_stars", 0).coerceAtLeast(0),
+            perkTokens = prefs.getInt("perk_tokens", 0).coerceAtLeast(0),
+            merchCredits = prefs.getInt("merch_credits", 0).coerceAtLeast(0),
+            eliteMerchCredits = prefs.getInt("elite_merch_credits", 0).coerceAtLeast(0),
+            dailyStreak = prefs.getInt("daily_streak", 0).coerceAtLeast(0),
+            kills = prefs.getInt("director_kills", 0).coerceAtLeast(0),
+            bosses = prefs.getInt("director_bosses", 0).coerceAtLeast(0),
+            rifts = prefs.getInt("director_rifts", 0).coerceAtLeast(0),
+            expeditions = prefs.getInt("director_expeditions", 0).coerceAtLeast(0)
+        )
+        activeRide = prefs.getString("active_ride", activeRide) ?: activeRide
+        activeStyle = prefs.getInt("active_style", 0).coerceIn(0, styles.lastIndex)
+
+        parseCounts(prefs.getString("materials", null)).forEach { (id, value) -> materials[id] = value }
+        parseCounts(prefs.getString("daily_progress", null)).forEach { (id, value) -> dailyProgressMap[id] = value }
+
+        prefs.getString("unlocked_styles", null)?.split(",")
+            ?.mapNotNull { it.toIntOrNull() }
+            ?.forEach { index ->
+                if (index in styles.indices) styles[index] = styles[index].copy(locked = false)
+            }
+
+        parseCores(prefs.getString("cores", null)).let {
+            if (it.isNotEmpty()) {
+                cores.clear()
+                cores.addAll(it)
+            }
+        }
+        parseEquipped(prefs.getString("equipped_cores", null)).let {
+            if (it.isNotEmpty()) {
+                equipped.clear()
+                equipped.putAll(it)
+            }
+        }
+    }
+
+    private fun parseCounts(raw: String?): Map<String, Int> =
+        raw.orEmpty().split(";")
+            .mapNotNull { item ->
+                val pair = item.split("=", limit = 2)
+                if (pair.size == 2) pair[0].takeIf { it.isNotBlank() }?.let { it to (pair[1].toIntOrNull() ?: 0) } else null
+            }.toMap()
+
+    private fun parseCores(raw: String?): List<OfflineUpgradeCore> =
+        raw.orEmpty().split(";").mapNotNull { item ->
+            val p = item.split(",")
+            if (p.size != 5) return@mapNotNull null
+            val type = runCatching { OfflineCoreType.valueOf(p[1]) }.getOrNull() ?: return@mapNotNull null
+            OfflineUpgradeCore(p[0], type, p[2].toIntOrNull() ?: return@mapNotNull null, p[3].toIntOrNull() ?: return@mapNotNull null, p[4].toFloatOrNull() ?: return@mapNotNull null)
+        }
+
+    private fun parseEquipped(raw: String?): Map<String, OfflineUpgradeCore> {
+        val out = linkedMapOf<String, OfflineUpgradeCore>()
+        raw.orEmpty().split(";").forEach { item ->
+            val p = item.split(",")
+            if (p.size != 6) return@forEach
+            val type = runCatching { OfflineCoreType.valueOf(p[2]) }.getOrNull() ?: return@forEach
+            val core = OfflineUpgradeCore(p[1], type, p[3].toIntOrNull() ?: return@forEach, p[4].toIntOrNull() ?: return@forEach, p[5].toFloatOrNull() ?: return@forEach)
+            out[p[0]] = core
+        }
+        return out
     }
 
     private fun rewardEnergy(elite: Boolean, boss: Boolean): Int {
