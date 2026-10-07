@@ -780,7 +780,7 @@ private class Game3DEngine(private val context: Context) {
         kills += 1
         huntKills += 1
         addXp(if (e.kind == EnemyKind.OVERLOAD_TITAN) 300f else if (e.elite) 28f else 18f)
-        hunterDirector.recordKill(e.kind.name, e.elite, e.kind == EnemyKind.OVERLOAD_TITAN, if (e.kind == EnemyKind.OVERLOAD_TITAN) 3 else 1)
+        hunterDirector.recordKill(e.kind.name, e.elite, e.kind == EnemyKind.OVERLOAD_TITAN)
         gold += if (e.kind == EnemyKind.OVERLOAD_TITAN) 250 else if (e.elite) 20 else 8
 
         if (e.kind != EnemyKind.OVERLOAD_TITAN) {
