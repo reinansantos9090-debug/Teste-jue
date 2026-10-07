@@ -274,6 +274,14 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
         paint.textAlign = Paint.Align.CENTER
         c.drawText("MOCHILA", w - 56f, 152f, paint)
         paint.textAlign = Paint.Align.LEFT
+        paint.color = 0xFF1F2D42.toInt()
+        panel.set(w - 130f, 164f, w - 18f, 204f)
+        c.drawRoundRect(panel, 12f, 12f, paint)
+        paint.color = 0xFFBBD0E8.toInt()
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = 9f
+        c.drawText("GESTO • " + engine.activeEmote().name, w - 74f, 189f, paint)
+        paint.textAlign = Paint.Align.LEFT
     }
 
     private fun drawHubPrompt(c: Canvas, w: Float, h: Float) {
@@ -601,6 +609,12 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
             c.drawText(row.second.toString(), w - 36f, y + 20f, paint)
             paint.textAlign = Paint.Align.LEFT
         }
+        paint.color = 0xFF8EA4BE.toInt()
+        paint.textSize = 8f
+        c.drawText(
+            "24 armas • 12 estilos • 30 capítulos • " + engine.historyEntries().size + " registros históricos • esquadrão IA offline",
+            22f, 414f, paint
+        )
     }
 
     private fun drawCrafting(c: Canvas, w: Float) {
@@ -844,6 +858,8 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
                         else -> 2
                     }
                     engine.useSkill(skill)
+                } else if (px > w - 130f && py in 164f..210f && engine.scene == SceneMode.HUB) {
+                    engine.cycleEmote()
                 } else if (px > w - 112f && py in 124f..176f) {
                     engine.openInventory()
                 } else if (engine.scene == SceneMode.HUB && py in (h * 0.36f)..(h * 0.45f)) {
@@ -943,6 +959,8 @@ private class Game3DEngine(private val context: Context) {
     private val performanceGovernor = MobilePerformanceGovernor(renderProfile)
     private val performanceTelemetry = OfflinePerformanceTelemetry()
     private val audioBus = OfflineAudioBus()
+    private val historyArchive = OfflineHistoryArchive()
+    private var mapRuntime = OfflineMapRuntime.forBiome("prism_garden")
 
     private var activityMode = OfflineMode.EXPEDITION
     private var activityTarget = 12
@@ -1001,8 +1019,10 @@ private class Game3DEngine(private val context: Context) {
             updateProjectiles(dt)
             updateDrops(dt)
             updateParticles(dt)
+            updateSquad(dt)
             updateWave(dt)
             if (screenShake > 0f) screenShake = max(0f, screenShake - dt * 2.8f)
+            emoteTimer = max(0f, emoteTimer - dt)
             objectiveText = when (activityMode) {
                 OfflineMode.EXPEDITION -> when {
                     bossActive -> "Derrote o Titã • Núcleos " + aetherCores + "/12"
@@ -1172,6 +1192,12 @@ private class Game3DEngine(private val context: Context) {
         particles.removeAll { it.life <= 0f }
     }
 
+    private fun rgbColor(hex: Int): FloatArray = floatArrayOf(
+        ((hex shr 16) and 255) / 255f,
+        ((hex shr 8) and 255) / 255f,
+        (hex and 255) / 255f
+    )
+
     private fun updateSquad(dt: Float) {
         if (scene != SceneMode.HUNT || isDefeated || activityMode == OfflineMode.TRAINING) return
         squadTimer += dt
@@ -1184,7 +1210,7 @@ private class Game3DEngine(private val context: Context) {
                 val damage = 13f * member.damageMultiplier * (1f + level * 0.018f)
                 target.hp -= damage
                 target.hitFlash = 0.10f
-                spawnBurst(target.pos, 0.08f, rgb(member.tint))
+                spawnBurst(target.pos, 0.08f, rgbColor(member.tint))
                 if (target.hp <= 0f) killEnemy(target)
             }
             if (index == 1) hp = min(maxHp, hp + maxHp * 0.028f * member.healMultiplier)
@@ -2199,6 +2225,18 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
         }
         for (e in engine.snapshotEnemies()) drawEnemy(e)
         drawPlayer()
+        drawSquad()
+    }
+
+    private fun drawSquad() {
+        if (engine.scene != SceneMode.HUNT) return
+        engine.squadMembers().forEachIndexed { i, member ->
+            val p = engine.squadOffsets().getOrNull(i) ?: return@forEachIndexed
+            val tint = rgb(member.tint)
+            drawCylinder(p.x, 0.86f, p.z, 0.30f, 0.86f, tint)
+            drawSphere(p.x, 1.45f, p.z, 0.25f, rgb(0xF1C7A2))
+            drawTorus(p.x, 1.02f, p.z, 0.36f, tint)
+        }
     }
 
     private fun drawBiomeLandmarks(biome: com.example.testejuerpg.offline.systems.OfflineBiome) {
