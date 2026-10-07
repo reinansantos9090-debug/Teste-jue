@@ -74,6 +74,9 @@ private data class EnemyEntity(
     var hitFlash: Float = 0f,
     var poison: Float = 0f,
     var poisonTick: Float = 0f,
+    var specialTimer: Float = 0f,
+    var summonTimer: Float = 10f,
+    var phase2: Boolean = false,
     var dead: Boolean = false,
     var elite: Boolean = false
 )
@@ -163,6 +166,7 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
 
         drawTopHud(canvas, w)
         drawControls(canvas, w, h)
+        if (!engine.isDefeated && engine.hp / engine.maxHp < 0.20f) drawLowHpVignette(canvas, w, h)
         if (engine.scene == SceneMode.HUB) drawHubPrompt(canvas, w, h)
         if (engine.isDefeated) drawDefeat(canvas, w, h)
         if (engine.bossActive) drawBossBar(canvas, w)
@@ -317,6 +321,17 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
         paint.color = 0xFFB1C1D5.toInt()
         paint.textSize = 11f
         c.drawText("Toque em uma arma para equipar • Voltar retorna ao mundo 3D", 30f, h - 44f, paint)
+    }
+
+    private fun drawLowHpVignette(c: Canvas, w: Float, h: Float) {
+        paint.color = 0x223C0A18
+        c.drawRect(0f, 0f, w, 28f, paint)
+        c.drawRect(0f, h - 28f, w, h, paint)
+        c.drawRect(0f, 0f, 24f, h, paint)
+        c.drawRect(w - 24f, 0f, w, h, paint)
+        paint.color = 0x183C0A18
+        c.drawRect(24f, 28f, w - 24f, 52f, paint)
+        c.drawRect(24f, h - 52f, w - 24f, h - 28f, paint)
     }
 
     private fun drawDefeat(c: Canvas, w: Float, h: Float) {
@@ -555,12 +570,35 @@ private class Game3DEngine(private val context: Context) {
         val nz = if (len > 0.01f) moveY / max(1f, len) else 0f
         player.x = (player.x + nx * 4.5f * dt).coerceIn(-18f, 18f)
         player.z = (player.z + nz * 4.5f * dt).coerceIn(-18f, 18f)
+        if (bossActive) {
+            val gateRadius = 12f
+            val d = sqrt(player.x * player.x + player.z * player.z)
+            if (d > gateRadius) {
+                player.x *= gateRadius / d
+                player.z *= gateRadius / d
+            }
+        }
     }
 
     private fun updateEnemies(dt: Float) {
         for (e in enemies) {
             if (e.dead) continue
             e.hitFlash = max(0f, e.hitFlash - dt)
+            if (e.kind == EnemyKind.OVERLOAD_TITAN) {
+                e.phase2 = e.hp <= EnemyKind.OVERLOAD_TITAN.hp * 0.50f
+                e.specialTimer = max(0f, e.specialTimer - dt)
+                e.summonTimer = max(0f, e.summonTimer - dt)
+                if (e.phase2 && e.specialTimer <= 0f) {
+                    e.specialTimer = 1.6f
+                    spawnBossProjectile(e)
+                    spawnBurst(e.pos, 0.25f, floatArrayOf(1f, 0.25f, 0.55f))
+                }
+                if (e.phase2 && e.summonTimer <= 0f && enemies.count { !it.dead } < 9) {
+                    e.summonTimer = 10f
+                    repeat(2) { spawnEnemy() }
+                    spawnBurst(e.pos, 0.35f, floatArrayOf(0.75f, 0.25f, 1f))
+                }
+            }
             if (e.poison > 0f) {
                 e.poison -= dt
                 e.poisonTick -= dt
@@ -617,6 +655,14 @@ private class Game3DEngine(private val context: Context) {
                         if (e.hp <= 0f) killEnemy(e)
                         break
                     }
+                }
+            } else {
+                val dx = p.pos.x - player.x
+                val dz = p.pos.z - player.z
+                if (dx * dx + dz * dz <= 0.60f * 0.60f) {
+                    takeDamage(p.damage)
+                    remove.add(p)
+                    spawnBurst(player, 0.16f, floatArrayOf(1f, 0.25f, 0.45f))
                 }
             }
         }
@@ -681,6 +727,19 @@ private class Game3DEngine(private val context: Context) {
                 spawnEnemy(false)
             }
         }
+    }
+
+    private fun spawnBossProjectile(boss: EnemyEntity) {
+        val dx = player.x - boss.pos.x
+        val dz = player.z - boss.pos.z
+        val distance = max(0.001f, sqrt(dx * dx + dz * dz))
+        projectiles += Projectile(
+            V3(boss.pos.x, boss.pos.y, boss.pos.z),
+            V3(dx / distance * 7.0f, 0f, dz / distance * 7.0f),
+            22f,
+            2.8f,
+            false
+        )
     }
 
     private fun spawnEnemy(elite: Boolean = false) {
@@ -1112,10 +1171,17 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
         )
 
         GLES20.glUniform3f(lightHandle, -0.55f, -1.0f, -0.35f)
+        val night = 0.5f - 0.5f * cos((time % 600f) / 600f * Math.PI * 2.0).toFloat()
         if (engine.scene == SceneMode.HUB) {
-            GLES20.glUniform4f(fogColorHandle, 0.12f, 0.15f, 0.24f, 1f)
+            val r = 0.12f - night * 0.04f
+            val g = 0.15f - night * 0.05f
+            val b = 0.24f - night * 0.03f
+            GLES20.glUniform4f(fogColorHandle, r.coerceAtLeast(0.04f), g.coerceAtLeast(0.05f), b.coerceAtLeast(0.08f), 1f)
         } else {
-            GLES20.glUniform4f(fogColorHandle, 0.06f, 0.09f, 0.13f, 1f)
+            val r = 0.06f - night * 0.025f
+            val g = 0.09f - night * 0.02f
+            val b = 0.13f + night * 0.04f
+            GLES20.glUniform4f(fogColorHandle, r.coerceAtLeast(0.02f), g.coerceAtLeast(0.03f), b, 1f)
         }
         GLES20.glUniform1f(fogDensityHandle, 0.015f)
         GLES20.glUniformMatrix4fv(viewHandle, 1, false, view, 0)
@@ -1155,6 +1221,17 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
             val h = 0.5f + (i % 3) * 0.35f
             val color = if (i % 4 == 0) floatArrayOf(0.34f, 0.56f, 0.32f) else floatArrayOf(0.24f, 0.36f, 0.28f)
             drawCube(x, h / 2f, z, 0.8f + (i % 3) * 0.4f, h, 0.7f + (i % 2) * 0.3f, color)
+        }
+        val nightCycle = 0.5f - 0.5f * cos((time % 600f) / 600f * Math.PI * 2.0).toFloat()
+        if (nightCycle > 0.55f) {
+            val fireflySeeds = intArrayOf(3, 7, 12, 16, 21, 27, 31, 36, 42, 47, 53, 59, 64, 71, 79, 83)
+            for (i in fireflySeeds.indices) {
+                val x = ((fireflySeeds[i] * 13) % 34 - 17).toFloat()
+                val z = ((fireflySeeds[i] * 17) % 34 - 17).toFloat()
+                val y = 1.2f + 0.65f * sin(time * 1.9f + i)
+                val pulse = 0.10f + 0.05f * (0.5f + 0.5f * sin(time * 3.0f + i))
+                drawSphere(x, y, z, pulse, floatArrayOf(0.65f, 1f, 0.32f))
+            }
         }
         for (i in -10..10 step 2) {
             drawCube(i.toFloat(), 0.04f, 0f, 0.04f, 0.03f, 44f, floatArrayOf(0.21f, 0.34f, 0.25f))
@@ -1227,7 +1304,8 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
             drawCube(e.pos.x, 2.15f, e.pos.z, 0.08f, 0.45f, 0.55f, c)
         } else {
             val s = if (e.kind == EnemyKind.OVERLOAD_TITAN) 1.6f else 0.9f
-            drawCube(e.pos.x, s, e.pos.z, s, s * 1.65f, s, if (e.hitFlash > 0f) floatArrayOf(1f, 1f, 1f) else c)
+            val bodyColor = if (e.hitFlash > 0f) floatArrayOf(1f, 1f, 1f) else if (e.phase2) floatArrayOf(1f, 0.20f, 0.45f) else c
+            drawCube(e.pos.x, s, e.pos.z, s, s * 1.65f, s, bodyColor)
             drawSphere(e.pos.x, s * 2.0f, e.pos.z, s * 0.55f, c)
             if (e.kind == EnemyKind.OVERLOAD_TITAN) {
                 drawTorus(e.pos.x, s * 2.1f, e.pos.z, s * 0.8f, floatArrayOf(1f, 0.32f, 0.72f))
