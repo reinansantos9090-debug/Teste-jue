@@ -25,6 +25,7 @@ import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
+import com.example.testejuerpg.offline.systems.OfflineHunterDirector
 
 private data class V3(var x: Float, var y: Float, var z: Float) {
     fun set(other: V3) { x = other.x; y = other.y; z = other.z }
@@ -488,6 +489,7 @@ private class Game3DEngine(private val context: Context) {
     private val random = Random(8107)
     private val vibration: Vibrator? = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     private val prefs = context.getSharedPreferences("teste_jue_3d", Context.MODE_PRIVATE)
+    private val hunterDirector = OfflineHunterDirector(2025)
 
     private var moveX = 0f
     private var moveY = 0f
@@ -528,6 +530,7 @@ private class Game3DEngine(private val context: Context) {
         primaryTimer = max(0f, primaryTimer - dt)
         for (i in 0..2) skillTimers[i] = max(0f, skillTimers[i] - dt)
 
+        hunterDirector.tick(dt)
         if (scene == SceneMode.HUNT && !isDefeated) {
             updatePlayer(dt)
             updateEnemies(dt)
@@ -626,7 +629,10 @@ private class Game3DEngine(private val context: Context) {
             val dx = d.pos.x - player.x
             val dz = d.pos.z - player.z
             if (dx * dx + dz * dz < 1.69f) {
-                if (d.type == 0) aetherCores += 1 else gold += 8
+                if (d.type == 0) {
+                    aetherCores += 1
+                    hunterDirector.recordCore(1)
+                } else gold += 8
                 spawnBurst(
                     d.pos,
                     0.14f,
@@ -667,6 +673,7 @@ private class Game3DEngine(private val context: Context) {
                 bossHp = 0f
                 gold += 250
                 addXp(300f)
+                hunterDirector.recordExpeditionComplete()
                 objectiveText = "EXPEDIÇÃO CONCLUÍDA • +250 Ouro"
                 spawnBurst(player, 1.2f, floatArrayOf(0.7f, 0.85f, 1f))
             }
@@ -714,6 +721,7 @@ private class Game3DEngine(private val context: Context) {
         kills += 1
         huntKills += 1
         addXp(if (e.kind == EnemyKind.OVERLOAD_TITAN) 300f else if (e.elite) 28f else 18f)
+        hunterDirector.recordKill(e.kind.name, e.elite, e.kind == EnemyKind.OVERLOAD_TITAN, if (e.kind == EnemyKind.OVERLOAD_TITAN) 3 else 1)
         gold += if (e.kind == EnemyKind.OVERLOAD_TITAN) 250 else if (e.elite) 20 else 8
 
         if (e.kind != EnemyKind.OVERLOAD_TITAN) {
@@ -917,6 +925,7 @@ private class Game3DEngine(private val context: Context) {
 
     fun startHunt() {
         if (scene == SceneMode.INVENTORY) return
+        hunterDirector.enterExpedition(0)
         scene = SceneMode.HUNT
         isDefeated = false
         bossActive = false
