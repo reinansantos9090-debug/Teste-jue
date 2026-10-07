@@ -122,7 +122,17 @@ jobs:
           set -euo pipefail
           mkdir -p "$HOME/.local/share/godot/export_templates/4.7.2.stable"
           curl -L --fail --retry 3 -o "$RUNNER_TEMP/godot/export_templates.tpz" "https://downloads.godotengine.org/?flavor=stable&platform=templates&slug=export_templates.tpz&version=4.7.2"
-          unzip -q -o "$RUNNER_TEMP/godot/export_templates.tpz" -d "$HOME/.local/share/godot/export_templates/4.7.2.stable"
+          rm -rf "$RUNNER_TEMP/godot/templates"
+          mkdir -p "$RUNNER_TEMP/godot/templates"
+          unzip -q "$RUNNER_TEMP/godot/export_templates.tpz" -d "$RUNNER_TEMP/godot/templates"
+          debug_template=$(find "$RUNNER_TEMP/godot/templates" -type f -name 'android_debug.apk' -print -quit)
+          release_template=$(find "$RUNNER_TEMP/godot/templates" -type f -name 'android_release.apk' -print -quit)
+          test -n "$debug_template"
+          test -n "$release_template"
+          cp "$debug_template" "$HOME/.local/share/godot/export_templates/4.7.2.stable/android_debug.apk"
+          cp "$release_template" "$HOME/.local/share/godot/export_templates/4.7.2.stable/android_release.apk"
+          test -f "$HOME/.local/share/godot/export_templates/4.7.2.stable/android_debug.apk"
+          test -f "$HOME/.local/share/godot/export_templates/4.7.2.stable/android_release.apk"
       - name: Validate Godot project
         shell: bash
         run: |
