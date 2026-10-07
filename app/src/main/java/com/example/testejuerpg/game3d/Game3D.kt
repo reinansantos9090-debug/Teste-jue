@@ -34,6 +34,10 @@ import com.example.testejuerpg.offline.systems.OfflineBiomeCatalog
 import com.example.testejuerpg.offline.systems.OfflineVisualCatalog
 import com.example.testejuerpg.offline.systems.OfflineWeaponCatalog
 import com.example.testejuerpg.offline.systems.OfflineBossCatalog
+import com.example.testejuerpg.offline.systems.OfflineMapRuntime
+import com.example.testejuerpg.offline.systems.OfflineSquadCatalog
+import com.example.testejuerpg.offline.systems.OfflineHistoryArchive
+import com.example.testejuerpg.offline.systems.OfflineEmoteCatalog
 
 private data class V3(var x: Float, var y: Float, var z: Float) {
     fun set(other: V3) { x = other.x; y = other.y; z = other.z }
@@ -950,6 +954,9 @@ private class Game3DEngine(private val context: Context) {
     private val skillTimers = floatArrayOf(0f, 0f, 0f)
     private var waveTimer = 0f
     private var storyWaveTimer = 0f
+    private var squadTimer = 0f
+    private var emoteTimer = 0f
+    private var activeEmote = 0
     private var nextEnemyId = 1
     private var lastTick = SystemClock.elapsedRealtime()
     private var paused = false
@@ -963,6 +970,8 @@ private class Game3DEngine(private val context: Context) {
     init {
         load()
         hunterDirector.loadFrom(prefs)
+        historyArchive.loadFrom(prefs)
+        activeEmote = prefs.getInt("active_emote", 0).coerceIn(0, OfflineEmoteCatalog.all.lastIndex)
     }
 
     @Synchronized fun resume() {
@@ -1016,8 +1025,11 @@ private class Game3DEngine(private val context: Context) {
         val len = sqrt(moveX * moveX + moveY * moveY)
         val nx = if (len > 0.01f) moveX / max(1f, len) else 0f
         val nz = if (len > 0.01f) moveY / max(1f, len) else 0f
-        player.x = (player.x + nx * 4.5f * dt).coerceIn(-18f, 18f)
-        player.z = (player.z + nz * 4.5f * dt).coerceIn(-18f, 18f)
+        val desiredX = player.x + nx * 4.5f * dt
+        val desiredZ = player.z + nz * 4.5f * dt
+        val resolved = mapRuntime.resolvePlayer(desiredX, desiredZ, 0.55f)
+        player.x = resolved.first
+        player.z = resolved.second
         if (bossActive) {
             val gateRadius = 12f
             val d = sqrt(player.x * player.x + player.z * player.z)
@@ -1068,8 +1080,10 @@ private class Game3DEngine(private val context: Context) {
                 val speedMultiplier = if (e.kind == EnemyKind.OVERLOAD_TITAN && e.phase2) {
                     OfflineBossCatalog.forId(e.bossProfileId).phase2Multiplier
                 } else 1f
-                e.pos.x += dx * inv * e.kind.speed * speedMultiplier * dt
-                e.pos.z += dz * inv * e.kind.speed * speedMultiplier * dt
+                val bossSpeed = bossProfile?.baseSpeed ?: e.kind.speed
+                e.pos.x += dx * inv * bossSpeed * speedMultiplier * dt
+                val bossSpeed = bossProfile?.baseSpeed ?: e.kind.speed
+                e.pos.z += dz * inv * bossSpeed * speedMultiplier * dt
             } else if (e.attackTimer <= 0f) {
                 val bossProfile = if (e.kind == EnemyKind.OVERLOAD_TITAN) OfflineBossCatalog.forId(e.bossProfileId) else null
                 e.attackTimer = bossProfile?.projectileInterval?.coerceAtLeast(0.8f) ?: 1.5f
@@ -1157,6 +1171,33 @@ private class Game3DEngine(private val context: Context) {
         }
         particles.removeAll { it.life <= 0f }
     }
+
+    private fun updateSquad(dt: Float) {
+        if (scene != SceneMode.HUNT || isDefeated || activityMode == OfflineMode.TRAINING) return
+        squadTimer += dt
+        if (squadTimer < 1.05f) return
+        squadTimer = 0f
+        OfflineSquadCatalog.all.forEachIndexed { index, member ->
+            val phase = (SystemClock.elapsedRealtime() % 120000L) / 1000f * (0.9f + index * 0.12f) + index
+            val target = nearestEnemy(11f)
+            if (target != null) {
+                val damage = 13f * member.damageMultiplier * (1f + level * 0.018f)
+                target.hp -= damage
+                target.hitFlash = 0.10f
+                spawnBurst(target.pos, 0.08f, rgb(member.tint))
+                if (target.hp <= 0f) killEnemy(target)
+            }
+            if (index == 1) hp = min(maxHp, hp + maxHp * 0.028f * member.healMultiplier)
+            val point = mapRuntime.resolvePlayer(
+                player.x + cos(phase) * (1.7f + index * 0.4f),
+                player.z + sin(phase) * (1.7f + index * 0.4f),
+                0.35f
+            )
+            memberOffsets[index].set(V3(point.first, 0.85f, point.second))
+        }
+    }
+
+    private val memberOffsets = Array(OfflineSquadCatalog.all.size) { V3(0f, 0.85f, 0f) }
 
     private fun updateWave(dt: Float) {
         waveTimer += dt
@@ -1275,12 +1316,26 @@ private class Game3DEngine(private val context: Context) {
 
     private fun spawnEnemyOfKind(kind: EnemyKind, elite: Boolean = false) {
         if (enemies.count { !it.dead } >= performanceGovernor.allowedEnemies()) return
-        val angle = random.nextFloat() * 6.283f
-        val distance = 8f + random.nextFloat() * 8f
+        var sx = 0f
+        var sz = 0f
+        var placed = false
+        repeat(8) {
+            val angle = random.nextFloat() * 6.283f
+            val distance = 8f + random.nextFloat() * 8f
+            val tx = cos(angle) * distance
+            val tz = sin(angle) * distance
+            if (mapRuntime.canSpawn(tx, tz, kind.radius)) {
+                sx = tx
+                sz = tz
+                placed = true
+                return@repeat
+            }
+        }
+        if (!placed) return
         val pos = V3(
-            cos(angle) * distance,
+            sx,
             if (kind == EnemyKind.SCRAP_GOLEM || kind == EnemyKind.OVERLOAD_TITAN) 1.0f else 0.65f,
-            sin(angle) * distance
+            sz
         )
         enemies += EnemyEntity(
             nextEnemyId++,
@@ -1618,6 +1673,13 @@ private class Game3DEngine(private val context: Context) {
         addXp(260f + completed.number * 12f)
         audioBus.play("level")
         objectiveText = "CAPÍTULO " + completed.number + " CONCLUÍDO • +" + completed.rewardGold + " Ouro"
+        historyArchive.record(
+            "chapter_" + completed.number,
+            completed.title,
+            "story",
+            completed.rewardGold,
+            System.currentTimeMillis()
+        )
         save()
     }
 
@@ -1630,6 +1692,8 @@ private class Game3DEngine(private val context: Context) {
         activityCompleted = false
         huntKills = 0
         storyWaveTimer = 0f
+        squadTimer = 0f
+        mapRuntime = OfflineMapRuntime.forBiome(activeBiome().id)
         enemies.clear()
         projectiles.clear()
         drops.clear()
@@ -1863,6 +1927,8 @@ private class Game3DEngine(private val context: Context) {
             .putString("name", playerName)
             .apply()
         hunterDirector.saveTo(prefs)
+        prefs.edit().putInt("active_emote", activeEmote).apply()
+        historyArchive.saveTo(prefs)
     }
 
     private fun vibrate(ms: Long) {
@@ -1875,6 +1941,20 @@ private class Game3DEngine(private val context: Context) {
         } catch (_: Throwable) {
         }
     }
+
+    fun activeEmote(): OfflineEmote = OfflineEmoteCatalog.all[activeEmote]
+    fun emoteActive(): Boolean = emoteTimer > 0f
+    fun cycleEmote() {
+        activeEmote = (activeEmote + 1) % OfflineEmoteCatalog.all.size
+        emoteTimer = 2.2f
+        audioBus.play("story")
+        save()
+        invalidateUi()
+    }
+
+    fun squadMembers() = OfflineSquadCatalog.all
+    fun squadOffsets(): List<V3> = memberOffsets.map { V3(it.x, it.y, it.z) }
+    fun historyEntries() = historyArchive.entries()
 
     fun activeStyleVisual(): OfflineVisualCatalog.StyleVisual =
         OfflineVisualCatalog.forStyle(rooftopController.selectedStyle)
