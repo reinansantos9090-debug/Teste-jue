@@ -329,7 +329,6 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
             paint.textSize = 7f
             c.drawText(if (i == engine.weaponIndex) "ATIVA" else "EQUIPAR", left + 10f, top + 63f, paint)
         }
-        }
 
         paint.color = 0xFF1E2A3F.toInt()
         panel.set(18f, h - 112f, w - 18f, h - 60f)
@@ -499,6 +498,10 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
             panel.set(left, y, left + cardW, y + 58f)
             c.drawRoundRect(panel, 13f, 13f, paint)
             paint.color = if (style.locked) 0xFF6D7890.toInt() else 0xFF66E7E9.toInt()
+            paint.textSize = 10f
+            paint.color = OfflineVisualCatalog.forStyle(i).accent
+            c.drawCircle(left + cardW - 18f, y + 18f, 7f, paint)
+            paint.color = if (style.locked) 0xFF6D7890.toInt() else 0xFFFFFFFF.toInt()
             paint.textSize = 10f
             c.drawText("STYLE " + (i + 1), left + 12f, y + 18f, paint)
             paint.color = 0xFFB7C7DB.toInt()
@@ -1068,8 +1071,10 @@ private class Game3DEngine(private val context: Context) {
                 e.pos.x += dx * inv * e.kind.speed * speedMultiplier * dt
                 e.pos.z += dz * inv * e.kind.speed * speedMultiplier * dt
             } else if (e.attackTimer <= 0f) {
-                e.attackTimer = if (e.kind == EnemyKind.OVERLOAD_TITAN) 1.2f else 1.5f
-                takeDamage(e.kind.attack * if (e.elite) 1.25f else 1f)
+                val bossProfile = if (e.kind == EnemyKind.OVERLOAD_TITAN) OfflineBossCatalog.forId(e.bossProfileId) else null
+                e.attackTimer = bossProfile?.projectileInterval?.coerceAtLeast(0.8f) ?: 1.5f
+                val contactDamage = bossProfile?.contactDamage ?: e.kind.attack
+                takeDamage(contactDamage * if (e.elite) 1.25f else 1f)
                 if (e.kind == EnemyKind.OVERLOAD_TITAN) {
                     spawnBurst(player, 0.22f, floatArrayOf(1f, 0.28f, 0.5f))
                 }
@@ -1216,13 +1221,22 @@ private class Game3DEngine(private val context: Context) {
                 bossDead = true
                 bossActive = false
                 bossHp = 0f
-                val isRift = activityMode == OfflineMode.RIFT_BOSS
-                gold += if (isRift) 360 else 250
-                addXp(if (isRift) 420f else 300f)
-                if (isRift) hunterDirector.recordRiftComplete() else hunterDirector.recordExpeditionComplete()
-                objectiveText = if (isRift) "RIFT CONCLUÍDO • +360 Ouro" else "EXPEDIÇÃO CONCLUÍDA • +250 Ouro"
-                spawnBurst(player, 1.2f, floatArrayOf(0.7f, 0.85f, 1f))
-                save()
+                if (activityMode == OfflineMode.STORY) {
+                    checkStoryObjective()
+                    if (!activityCompleted) {
+                        objectiveText = "CHEFE DERROTADO • preparando conclusão do capítulo"
+                    }
+                    spawnBurst(player, 1.2f, floatArrayOf(0.7f, 0.85f, 1f))
+                    save()
+                } else {
+                    val isRift = activityMode == OfflineMode.RIFT_BOSS
+                    gold += if (isRift) 360 else 250
+                    addXp(if (isRift) 420f else 300f)
+                    if (isRift) hunterDirector.recordRiftComplete() else hunterDirector.recordExpeditionComplete()
+                    objectiveText = if (isRift) "RIFT CONCLUÍDO • +360 Ouro" else "EXPEDIÇÃO CONCLUÍDA • +250 Ouro"
+                    spawnBurst(player, 1.2f, floatArrayOf(0.7f, 0.85f, 1f))
+                    save()
+                }
             }
             if (boss != null && random.nextFloat() < dt * 0.12f && enemies.count { !it.dead } < 9) {
                 spawnEnemy(false)
@@ -1531,8 +1545,11 @@ private class Game3DEngine(private val context: Context) {
     fun storySnapshot() = storyCampaign.snapshot()
 
     fun bossDisplayName(): String {
-        if (activityMode == OfflineMode.STORY) return storyCampaign.currentChapter().targetId
-        return "Titã de Sobrecarga"
+        if (activityMode == OfflineMode.STORY) {
+            return OfflineBossCatalog.forStoryName(storyCampaign.currentChapter().targetId).name
+        }
+        val boss = enemies.firstOrNull { it.kind == EnemyKind.OVERLOAD_TITAN && !it.dead }
+        return boss?.let { OfflineBossCatalog.forId(it.bossProfileId).name } ?: "Titã de Sobrecarga"
     }
 
 
@@ -1589,6 +1606,7 @@ private class Game3DEngine(private val context: Context) {
         EnemyKind.NEON_STALKER -> "stalker"
         EnemyKind.SCRAP_GOLEM -> "golem"
         EnemyKind.OVERLOAD_TITAN -> "boss"
+        else -> "any"
     }
 
     private fun checkStoryObjective() {
@@ -2104,22 +2122,24 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
     }
 
     private fun drawBiomeLandmarks(biome: com.example.testejuerpg.offline.systems.OfflineBiome) {
+        val visual = OfflineVisualCatalog.forBiome(biome.id)
         val accent = rgb(
             (biome.accentR * 255f).toInt().shl(16) or
                 (biome.accentG * 255f).toInt().shl(8) or
                 (biome.accentB * 255f).toInt()
         )
+        val scale = visual.propScale
         when (biome.id) {
             "prism_garden" -> {
                 for (i in 0 until 8) {
-                    val x = -14f + i * 4.1f
+                    val x = -14f + i * 4.1f * scale
                     drawCylinder(x, 0.65f, -10f + (i % 2) * 3f, 0.18f, 1.3f, accent)
                     drawSphere(x, 1.45f, -10f + (i % 2) * 3f, 0.30f, rgb(0xA1FFD3))
                 }
             }
             "neon_forest" -> {
                 for (i in 0 until 9) {
-                    val x = -15f + (i * 3.7f)
+                    val x = -15f + (i * 3.7f) * scale
                     val z = -12f + (i % 3) * 5f
                     drawCylinder(x, 1.1f, z, 0.24f, 2.2f, rgb(0x514B78))
                     drawSphere(x, 2.65f, z, 0.72f, rgb(0x33D9A0))
@@ -2127,7 +2147,7 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
             }
             "plasma_marsh" -> {
                 for (i in 0 until 7) {
-                    val x = -13f + i * 4.2f
+                    val x = -13f + i * 4.2f * scale
                     val z = -11f + (i % 2) * 5f
                     drawTorus(x, 0.10f, z, 0.8f, accent)
                     drawSphere(x, 0.22f, z, 0.22f, rgb(0x68D8FF))
@@ -2233,13 +2253,19 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
     }
 
     private fun drawEnemy(e: EnemyEntity) {
+        val bossProfile = if (e.kind == EnemyKind.OVERLOAD_TITAN) OfflineBossCatalog.forId(e.bossProfileId) else null
         val c = when (e.kind) {
             EnemyKind.AETHER_SLIME -> floatArrayOf(0.28f, 0.88f, 0.72f)
             EnemyKind.NEON_STALKER -> floatArrayOf(0.92f, 0.32f, 0.62f)
             EnemyKind.SCRAP_GOLEM -> floatArrayOf(0.52f, 0.58f, 0.66f)
-            EnemyKind.OVERLOAD_TITAN -> floatArrayOf(0.67f, 0.24f, 1f)
+            EnemyKind.OVERLOAD_TITAN -> rgb(bossProfile?.body ?: 0xAA65FF)
+            else -> {
+                val palette = intArrayOf(0x76E1FF, 0xFF8CD9, 0xA0FF7D, 0xFFB86B, 0xC6A0FF)
+                rgb(palette[e.kind.ordinal % palette.size])
+            }
         }
 
+        drawCylinder(e.pos.x, 0.07f, e.pos.z, e.kind.radius * 0.9f, 0.025f, e.kind.radius * 0.7f, floatArrayOf(0.07f, 0.09f, 0.12f))
         if (e.kind == EnemyKind.AETHER_SLIME) {
             drawSphere(e.pos.x, 0.58f, e.pos.z, if (e.elite) 0.9f else 0.68f, if (e.hitFlash > 0f) floatArrayOf(1f, 1f, 1f) else c)
         } else if (e.kind == EnemyKind.NEON_STALKER) {
@@ -2252,12 +2278,12 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
             drawCube(e.pos.x, s, e.pos.z, s, s * 1.65f, s, bodyColor)
             drawSphere(e.pos.x, s * 2.0f, e.pos.z, s * 0.55f, c)
             if (e.kind == EnemyKind.OVERLOAD_TITAN) {
-                drawTorus(e.pos.x, s * 2.1f, e.pos.z, s * 0.8f, floatArrayOf(1f, 0.32f, 0.72f))
+                drawTorus(e.pos.x, s * 2.1f, e.pos.z, s * 0.8f, rgb(bossProfile?.aura ?: 0xFF4C8F))
             }
         }
 
         if (e.kind == EnemyKind.OVERLOAD_TITAN || e.elite) {
-            drawTorus(e.pos.x, 0.12f, e.pos.z, e.kind.radius + 0.35f, floatArrayOf(1f, 0.32f, 0.72f))
+            drawTorus(e.pos.x, 0.12f, e.pos.z, e.kind.radius + 0.35f, rgb(bossProfile?.aura ?: 0xFF4C8F))
         }
     }
 
