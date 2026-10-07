@@ -5,9 +5,6 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# Do not gate the whole workflow on concurrency: the canceler must start
-# immediately so a newer run can terminate older queued/running runs.
-
 jobs:
   cancel-older-runs:
     runs-on: ubuntu-latest
@@ -16,22 +13,13 @@ jobs:
     steps:
       - name: Cancel older queued or running workflow runs
         env:
-          GH_TOKEN: ${{ github.token }}
-          CURRENT_RUN: ${{ github.run_id }}
-          WORKFLOW_NAME: ${{ github.workflow }}
-          BRANCH_NAME: ${{ github.ref_name }}
+          GH_TOKEN: ${ github.token }
+          CURRENT_RUN: ${ github.run_id }
+          WORKFLOW_NAME: ${ github.workflow }
+          BRANCH_NAME: ${ github.ref_name }
         run: |
           set -euo pipefail
-          gh run list \
-            --repo "$GITHUB_REPOSITORY" \
-            --workflow "$WORKFLOW_NAME" \
-            --branch "$BRANCH_NAME" \
-            --limit 100 \
-            --json databaseId,status \
-            --jq '.[] |
-              select(.databaseId < ($ENV.CURRENT_RUN | tonumber)) |
-              select(.status == "queued" or .status == "in_progress" or .status == "waiting" or .status == "pending") |
-              .databaseId' |
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow "$WORKFLOW_NAME" --branch "$BRANCH_NAME" --limit 100 --json databaseId,status --jq '.[] | select(.databaseId < ('"$CURRENT_RUN"' | tonumber)) | select(.status == "queued" or .status == "in_progress" or .status == "waiting" or .status == "pending") | .databaseId' |
           while read -r run_id; do
             [ -z "$run_id" ] && continue
             gh run cancel "$run_id" --repo "$GITHUB_REPOSITORY" || true
@@ -40,7 +28,7 @@ jobs:
   build:
     needs: cancel-older-runs
     concurrency:
-      group: android-3d-build-${{ github.ref }}
+      group: android-3d-build-${ github.ref }
       cancel-in-progress: true
     runs-on: ubuntu-latest
     permissions:
@@ -49,30 +37,33 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: gradle
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
-
       - name: Set up Godot 4.7.2
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/godot"
-          curl -L --fail --retry 3 -o "$RUNNER_TEMP/godot/godot.zip" \\
-            "https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip"
+          curl -L --fail --retry 3 -o "$RUNNER_TEMP/godot/godot.zip" "https://downloads.godotengine.org/?flavor=stable&platform=linux.64&slug=linux.x86_64.zip&version=4.7.2"
           unzip -q "$RUNNER_TEMP/godot/godot.zip" -d "$RUNNER_TEMP/godot"
-          chmod +x "$RUNNER_TEMP/godot/Godot_v4.7.2-stable_linux.x86_64"
-          echo "GODOT_BIN=$RUNNER_TEMP/godot/Godot_v4.7.2-stable_linux.x86_64" >> "$GITHUB_ENV"
-
+          GODOT_BIN="$RUNNER_TEMP/godot/Godot_v4.7.2-stable_linux.x86_64"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+      - name: Install Godot Android export templates
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.7.2.stable"
+          curl -L --fail --retry 3 -o "$RUNNER_TEMP/godot/export_templates.tpz" "https://downloads.godotengine.org/?flavor=stable&platform=templates&slug=export_templates.tpz&version=4.7.2"
+          unzip -q -o "$RUNNER_TEMP/godot/export_templates.tpz" -d "$HOME/.local/share/godot/export_templates/4.7.2.stable"
       - name: Validate Godot project
         shell: bash
         run: |
@@ -82,7 +73,9 @@ jobs:
           test -f godot/export_presets.cfg
           test -f godot/scenes/Main.tscn
           test -f godot/scripts/game_root.gd
-
+          test -f godot/scripts/core/content_database.gd
+          test -f godot/scripts/gameplay/combat_service.gd
+          "$GODOT_BIN" --headless --path godot --export-debug "Android" "$RUNNER_TEMP/aetheria-echoes-godot-debug.apk"
       - name: Count source lines
         shell: bash
         run: |
@@ -91,16 +84,21 @@ jobs:
           while IFS= read -r -d '' file; do
             lines=$(wc -l < "$file")
             total=$((total + lines))
-          done < <(find . -type f \( -name '*.kt' -o -name '*.kts' -o -name '*.java' -o -name '*.gradle' -o -name '*.py' \) -not -path './.git/*' -print0)
+          done < <(find . -type f \( -name '*.kt' -o -name '*.kts' -o -name '*.java' -o -name '*.gradle' -o -name '*.py' -o -name '*.gd' \) -not -path './.git/*' -print0)
           echo "TOTAL_SOURCE_LINES=$total"
-
-      - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace
-
-      - name: Publish installable APK
+      - name: Publish Godot APK
         uses: actions/upload-artifact@v4
         with:
-          name: teste-jue-3d-debug-apk
+          name: aetheria-echoes-godot-debug-apk
+          path: ${${ runner.temp }}/aetheria-echoes-godot-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Build Android host APK
+        run: gradle :app:assembleDebug --stacktrace
+      - name: Publish Android host APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: teste-jue-host-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
