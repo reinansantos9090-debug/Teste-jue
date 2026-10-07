@@ -31,6 +31,7 @@ import com.example.testejuerpg.offline.systems.RooftopScreen
 import com.example.testejuerpg.offline.OfflineMode
 import com.example.testejuerpg.offline.systems.OfflineStoryCampaign
 import com.example.testejuerpg.offline.systems.OfflineBiomeCatalog
+import com.example.testejuerpg.offline.systems.OfflineVisualCatalog
 
 private data class V3(var x: Float, var y: Float, var z: Float) {
     fun set(other: V3) { x = other.x; y = other.y; z = other.z }
@@ -687,7 +688,7 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
         paint.color = 0xFFFFFFFF.toInt()
         paint.textAlign = Paint.Align.CENTER
         paint.textSize = 12f
-        c.drawText("TITÃ DE SOBRECARGA", w / 2f, 147f, paint)
+        c.drawText(engine.bossDisplayName().uppercase(Locale.getDefault()), w / 2f, 147f, paint)
         drawBar(c, left + 12f, 153f, bw - 24f, 12f, engine.bossHp / engine.bossMaxHp, 0xFFFF4C77.toInt())
         paint.textAlign = Paint.Align.LEFT
     }
@@ -928,6 +929,7 @@ private class Game3DEngine(private val context: Context) {
     private var primaryTimer = 0f
     private val skillTimers = floatArrayOf(0f, 0f, 0f)
     private var waveTimer = 0f
+    private var storyWaveTimer = 0f
     private var nextEnemyId = 1
     private var lastTick = SystemClock.elapsedRealtime()
     private var paused = false
@@ -940,6 +942,7 @@ private class Game3DEngine(private val context: Context) {
 
     init {
         load()
+        hunterDirector.loadFrom(prefs)
     }
 
     @Synchronized fun resume() {
@@ -1167,7 +1170,21 @@ private class Game3DEngine(private val context: Context) {
             }
             OfflineMode.TRAINING -> Unit
             OfflineMode.STORY -> {
-                if (!activityCompleted && storyCampaign.objectiveComplete()) checkStoryObjective()
+                if (storyCampaign.objectiveComplete()) {
+                    checkStoryObjective()
+                } else {
+                    storyWaveTimer += dt
+                    if (storyWaveTimer >= 1.75f && enemies.count { !it.dead } < min(6, performanceGovernor.allowedEnemies())) {
+                        storyWaveTimer = 0f
+                        val chapter = storyCampaign.currentChapter()
+                        when (chapter.objectiveKind) {
+                            "ELITE" -> spawnStoryEnemy(true)
+                            "CORE", "ARENA" -> spawnStoryEnemy(false)
+                            "BOSS" -> if (!bossSpawned) spawnBoss()
+                            else -> spawnStoryEnemy(false)
+                        }
+                    }
+                }
             }
         }
 
@@ -1210,11 +1227,18 @@ private class Game3DEngine(private val context: Context) {
             huntKills >= 8 -> listOf(EnemyKind.AETHER_SLIME, EnemyKind.NEON_STALKER, EnemyKind.SCRAP_GOLEM)
             else -> listOf(EnemyKind.AETHER_SLIME, EnemyKind.NEON_STALKER)
         }
-        val kind = choices[random.nextInt(choices.size)]
+        spawnEnemyOfKind(choices[random.nextInt(choices.size)], elite)
+    }
+
+    private fun spawnEnemyOfKind(kind: EnemyKind, elite: Boolean = false) {
+        if (enemies.count { !it.dead } >= performanceGovernor.allowedEnemies()) return
         val angle = random.nextFloat() * 6.283f
         val distance = 8f + random.nextFloat() * 8f
-        val pos = V3(cos(angle) * distance, if (kind == EnemyKind.SCRAP_GOLEM) 1.0f else 0.65f, sin(angle) * distance)
-        if (enemies.count { !it.dead } >= performanceGovernor.allowedEnemies()) return
+        val pos = V3(
+            cos(angle) * distance,
+            if (kind == EnemyKind.SCRAP_GOLEM || kind == EnemyKind.OVERLOAD_TITAN) 1.0f else 0.65f,
+            sin(angle) * distance
+        )
         enemies += EnemyEntity(
             nextEnemyId++,
             kind,
@@ -1466,6 +1490,12 @@ private class Game3DEngine(private val context: Context) {
 
     fun storySnapshot() = storyCampaign.snapshot()
 
+    fun bossDisplayName(): String {
+        if (activityMode == OfflineMode.STORY) return storyCampaign.currentChapter().targetId
+        return "Titã de Sobrecarga"
+    }
+
+
     fun advanceStoryBeat() {
         if (storyCampaign.advanceBeat()) {
             audioBus.play("story")
@@ -1490,11 +1520,28 @@ private class Game3DEngine(private val context: Context) {
         objectiveText = "HISTÓRIA • " + chapter.title + " • " + chapter.synopsis
         when (chapter.objectiveKind) {
             "BOSS" -> spawnBoss()
-            "CORE", "ARENA" -> repeat(4) { spawnEnemy() }
-            "ELITE" -> repeat(4) { spawnEnemy(true) }
-            else -> repeat(4) { spawnEnemy() }
+            "ELITE" -> repeat(4) { spawnStoryEnemy(true) }
+            "CORE", "ARENA" -> repeat(4) { spawnStoryEnemy(false) }
+            else -> repeat(4) { spawnStoryEnemy(false) }
         }
+        storyWaveTimer = 0f
         audioBus.play("story")
+    }
+
+    private fun spawnStoryEnemy(forceElite: Boolean) {
+        val chapter = storyCampaign.currentChapter()
+        val kind = when (chapter.targetId) {
+            "slime" -> EnemyKind.AETHER_SLIME
+            "stalker" -> EnemyKind.NEON_STALKER
+            "golem" -> EnemyKind.SCRAP_GOLEM
+            "boss" -> EnemyKind.OVERLOAD_TITAN
+            else -> listOf(EnemyKind.AETHER_SLIME, EnemyKind.NEON_STALKER, EnemyKind.SCRAP_GOLEM)[random.nextInt(3)]
+        }
+        if (kind == EnemyKind.OVERLOAD_TITAN) {
+            if (!bossSpawned) spawnBoss()
+            return
+        }
+        spawnEnemyOfKind(kind, forceElite || chapter.objectiveKind == "ELITE")
     }
 
     private fun storyTargetId(e: EnemyEntity): String = when (e.kind) {
@@ -1509,6 +1556,7 @@ private class Game3DEngine(private val context: Context) {
         val completed = storyCampaign.completeBattle() ?: return
         activityCompleted = true
         gold += completed.rewardGold
+        hunterDirector.grantStoryReward(completed.rewardEnergy, completed.rewardGold)
         addXp(260f + completed.number * 12f)
         audioBus.play("level")
         objectiveText = "CAPÍTULO " + completed.number + " CONCLUÍDO • +" + completed.rewardGold + " Ouro"
@@ -1523,6 +1571,7 @@ private class Game3DEngine(private val context: Context) {
         bossDead = false
         activityCompleted = false
         huntKills = 0
+        storyWaveTimer = 0f
         enemies.clear()
         projectiles.clear()
         drops.clear()
@@ -1755,6 +1804,7 @@ private class Game3DEngine(private val context: Context) {
             .putFloat("pz", player.z)
             .putString("name", playerName)
             .apply()
+        hunterDirector.saveTo(prefs)
     }
 
     private fun vibrate(ms: Long) {
@@ -1767,6 +1817,9 @@ private class Game3DEngine(private val context: Context) {
         } catch (_: Throwable) {
         }
     }
+
+    fun activeStyleVisual(): OfflineVisualCatalog.StyleVisual =
+        OfflineVisualCatalog.forStyle(rooftopController.selectedStyle)
 
     fun activeBiome(): com.example.testejuerpg.offline.systems.OfflineBiome {
         return OfflineBiomeCatalog.forWorld(
@@ -1965,6 +2018,7 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
         val biome = engine.activeBiome()
         drawCube(0f, -0.14f, 0f, 44f, 0.25f, 44f, floatArrayOf(biome.groundR, biome.groundG, biome.groundB))
         val seeds = intArrayOf(2, 5, 8, 11, 15, 19, 23, 29, 31, 37, 41, 43)
+        drawBiomeLandmarks(biome)
         for (i in seeds.indices) {
             val x = ((seeds[i] * 7) % 34 - 17).toFloat()
             val z = ((seeds[i] * 11) % 34 - 17).toFloat()
@@ -1975,7 +2029,7 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
         val nightCycle = 0.5f - 0.5f * cos((time % 600f) / 600f * Math.PI * 2.0).toFloat()
         if (nightCycle > 0.55f) {
             val fireflySeeds = intArrayOf(3, 7, 12, 16, 21, 27, 31, 36, 42, 47, 53, 59, 64, 71, 79, 83)
-            for (i in fireflySeeds.indices) {
+            for (i in 0 until min(fireflySeeds.size, engine.allowedFireflies())) {
                 val x = ((fireflySeeds[i] * 13) % 34 - 17).toFloat()
                 val z = ((fireflySeeds[i] * 17) % 34 - 17).toFloat()
                 val y = 1.2f + 0.65f * sin(time * 1.9f + i)
@@ -2009,17 +2063,109 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
         drawPlayer()
     }
 
+    private fun drawBiomeLandmarks(biome: com.example.testejuerpg.offline.systems.OfflineBiome) {
+        val accent = rgb(
+            (biome.accentR * 255f).toInt().shl(16) or
+                (biome.accentG * 255f).toInt().shl(8) or
+                (biome.accentB * 255f).toInt()
+        )
+        when (biome.id) {
+            "prism_garden" -> {
+                for (i in 0 until 8) {
+                    val x = -14f + i * 4.1f
+                    drawCylinder(x, 0.65f, -10f + (i % 2) * 3f, 0.18f, 1.3f, accent)
+                    drawSphere(x, 1.45f, -10f + (i % 2) * 3f, 0.30f, rgb(0xA1FFD3))
+                }
+            }
+            "neon_forest" -> {
+                for (i in 0 until 9) {
+                    val x = -15f + (i * 3.7f)
+                    val z = -12f + (i % 3) * 5f
+                    drawCylinder(x, 1.1f, z, 0.24f, 2.2f, rgb(0x514B78))
+                    drawSphere(x, 2.65f, z, 0.72f, rgb(0x33D9A0))
+                }
+            }
+            "plasma_marsh" -> {
+                for (i in 0 until 7) {
+                    val x = -13f + i * 4.2f
+                    val z = -11f + (i % 2) * 5f
+                    drawTorus(x, 0.10f, z, 0.8f, accent)
+                    drawSphere(x, 0.22f, z, 0.22f, rgb(0x68D8FF))
+                }
+            }
+            "scrap_ruins" -> {
+                for (i in 0 until 8) {
+                    val x = -15f + i * 4.0f
+                    val z = -11f + ((i * 3) % 5)
+                    drawCube(x, 1.0f + (i % 3) * 0.3f, z, 0.6f, 1.0f + (i % 3) * 0.3f, 0.6f, rgb(0x6C737F))
+                    drawCube(x + 0.65f, 0.5f, z, 0.35f, 0.25f, 0.35f, accent)
+                }
+            }
+            "magnetic_canyon", "vortex_canyon" -> {
+                for (i in 0 until 8) {
+                    val x = -15f + i * 4.2f
+                    val z = -12f + (i % 2) * 6f
+                    drawCylinder(x, 1.0f + (i % 3) * 0.6f, z, 0.45f, 2.0f + (i % 3) * 1.2f, accent)
+                    drawTorus(x, 2.5f, z, 0.65f, rgb(0xFF8F6A))
+                }
+            }
+            "aurora_dome" -> {
+                for (i in 0 until 5) {
+                    val z = -13f + i * 6f
+                    drawTorus(0f, 1.2f, z, 2.4f + i * 0.25f, accent)
+                }
+            }
+            "crystal_vale" -> {
+                for (i in 0 until 10) {
+                    val x = -16f + i * 3.5f
+                    val z = -11f + (i % 4) * 3.5f
+                    drawCube(x, 0.8f + (i % 3) * 0.4f, z, 0.3f, 0.9f, 0.3f, accent)
+                    drawSphere(x, 1.65f + (i % 2) * 0.3f, z, 0.20f, rgb(0xDAF4FF))
+                }
+            }
+            "memory_desert" -> {
+                for (i in 0 until 7) {
+                    val x = -15f + i * 4.8f
+                    drawCube(x, 0.9f, -11f, 0.8f, 1.8f, 0.5f, rgb(0xBC9765))
+                    drawTorus(x, 1.8f, -11f, 0.7f, accent)
+                }
+            }
+            "origin_chamber", "blue_void" -> {
+                for (i in 0 until 7) {
+                    val a = i * 0.897f
+                    val x = cos(a) * 11f
+                    val z = sin(a) * 11f
+                    drawCylinder(x, 1.3f, z, 0.16f, 2.6f, accent)
+                    drawSphere(x, 2.75f, z, 0.24f, rgb(0x9CCBFF))
+                }
+            }
+        }
+    }
+
     private fun drawPlayer() {
         val p = engine.player
-        drawCylinder(p.x, 1.0f, p.z, 0.48f, 1.25f, floatArrayOf(0.32f, 0.54f, 0.86f))
-        drawSphere(p.x, 1.85f, p.z, 0.42f, floatArrayOf(0.94f, 0.80f, 0.68f))
-        drawCube(p.x - 0.23f, 0.35f, p.z, 0.15f, 0.55f, 0.2f, floatArrayOf(0.12f, 0.18f, 0.28f))
-        drawCube(p.x + 0.23f, 0.35f, p.z, 0.15f, 0.55f, 0.2f, floatArrayOf(0.12f, 0.18f, 0.28f))
+        val style = engine.activeStyleVisual()
+        val body = rgb(style.body)
+        val suit = rgb(style.suit)
+        val accent = rgb(style.accent)
+        val headwear = rgb(style.headwear)
+        val ride = rgb(style.ride)
+
+        drawCylinder(p.x, 1.0f, p.z, 0.48f, 1.25f, suit)
+        drawSphere(p.x, 1.85f, p.z, 0.42f, body)
+        drawCube(p.x - 0.23f, 0.35f, p.z, 0.15f, 0.55f, 0.2f, rgb(0x18243B))
+        drawCube(p.x + 0.23f, 0.35f, p.z, 0.15f, 0.55f, 0.2f, rgb(0x18243B))
+
+        // Style-specific headwear and chest emitter.
+        drawCube(p.x, 2.20f, p.z, 0.50f, 0.09f, 0.50f, headwear)
+        drawSphere(p.x + 0.34f, 1.25f, p.z, 0.12f, accent)
+        drawTorus(p.x, 1.34f, p.z, 0.58f, accent)
+
         val weaponColor = when (engine.weaponIndex) {
-            0 -> floatArrayOf(0.50f, 0.80f, 1f)
-            1 -> floatArrayOf(0.35f, 0.95f, 0.45f)
-            2 -> floatArrayOf(0.75f, 0.40f, 1f)
-            else -> floatArrayOf(0.90f, 0.55f, 0.22f)
+            0 -> rgb(0x7FD7FF)
+            1 -> rgb(0x7AFF91)
+            2 -> rgb(0xC59AFF)
+            else -> rgb(0xFFB76A)
         }
         drawCube(
             p.x + 0.6f,
@@ -2030,7 +2176,20 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
             if (engine.weaponIndex == 3) 0.25f else 0.72f,
             weaponColor
         )
+
+        // Low-cost hover ride silhouette, rendered only while the hub is visible.
+        if (engine.scene == SceneMode.HUB) {
+            drawCube(p.x, 0.18f, p.z + 0.02f, 0.74f, 0.08f, 0.34f, ride)
+            drawSphere(p.x - 0.40f, 0.12f, p.z, 0.11f, accent)
+            drawSphere(p.x + 0.40f, 0.12f, p.z, 0.11f, accent)
+        }
     }
+
+    private fun rgb(hex: Int): FloatArray = floatArrayOf(
+        ((hex shr 16) and 255) / 255f,
+        ((hex shr 8) and 255) / 255f,
+        (hex and 255) / 255f
+    )
 
     private fun drawNpc(x: Float, y: Float, z: Float, color: FloatArray) {
         drawCylinder(x, y, z, 0.42f, 1.2f, color)
