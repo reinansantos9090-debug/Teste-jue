@@ -603,3 +603,4 @@ object GeneratedPack80 {
     val item0598 = OfflineContentEntry("g80_0598", "weapon", "weapon 80-598", "HuntZone80", 369, 338, 31, 1624, 2, "Conteúdo offline original de combate e exploração 3D.")
     val item0599 = OfflineContentEntry("g80_0599", "weapon", "weapon 80-599", "HuntZone80", 410, 355, 18, 1677, 3, "Conteúdo offline original de combate e exploração 3D.")
     val item0600 = OfflineContentEntry("g80_0600", "weapon", "weapon 80-600", "HuntZone80", 451, 372, 5, 1730, 0, "Conteúdo offline original de combate e exploração 3D.")
+}
