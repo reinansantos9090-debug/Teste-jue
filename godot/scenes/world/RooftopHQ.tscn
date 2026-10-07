@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[node name="RooftopHQ" type="Node3D"]
+
+[node name="PortalAnchor" type="Marker3D" parent="."]
+
+[node name="CameraAnchor" type="Marker3D" parent="."]
+
+[node name="LightingAnchor" type="Marker3D" parent="."]

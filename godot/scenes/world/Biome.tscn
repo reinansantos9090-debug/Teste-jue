@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[node name="Biome" type="Node3D"]
+
+[node name="PlayerSpawn" type="Marker3D" parent="."]
+
+[node name="PortalSpawn" type="Marker3D" parent="."]
+
+[node name="EnemySpawns" type="Node3D" parent="."]
+
+[node name="Props" type="Node3D" parent="."]

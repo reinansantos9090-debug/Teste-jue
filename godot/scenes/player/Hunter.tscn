@@ -1,0 +1,9 @@
+[gd_scene format=3]
+
+[node name="Hunter" type="Node3D"]
+
+[node name="Visual" type="Node3D" parent="."]
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+
+[node name="Collision" type="CollisionShape3D" parent="."]
