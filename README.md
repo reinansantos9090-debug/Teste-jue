@@ -26,3 +26,8 @@ A estrutura de *mo.co* de 2025 é usada apenas como referência de design: Porta
 ## Build
 
 O workflow `.github/workflows/android.yml` instala Gradle 9.3.1 e JDK 21, executa `:app:assembleDebug` e publica `app-debug.apk` como artifact.
+
+
+## Escala desta etapa
+
+Os packs offline compiláveis adicionados nesta conversão somam **100.769 linhas** de código-fonte Kotlin, além do núcleo 3D, sistemas de progressão e código Android. A contagem é baseada na composição dos arquivos versionados desta etapa; ela não é usada como medida de qualidade por si só.
