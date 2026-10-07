@@ -63,10 +63,30 @@ class OfflineRooftopController(private val director: OfflineHunterDirector) {
     private var versusScore = 0
 
     private val sprints = mutableListOf(
-        OfflineSprint("sprint_voltaic", "weapon_voltaic", "Circuito Voltáico", "Derrote 30 monstros com Lâminas Voltáicas.", 30, 280, 2),
-        OfflineSprint("sprint_bow", "weapon_bow", "Pulso Tóxico", "Derrote 24 monstros com Arco Tóxico.", 24, 300, 2),
-        OfflineSprint("sprint_cannon", "weapon_cannon", "Impacto Pulsar", "Derrote 40 monstros com Canhão Pulsar.", 40, 360, 3),
-        OfflineSprint("sprint_hammer", "weapon_hammer", "Sucata Pesada", "Derrote 18 elites com Martelo Sucateiro.", 18, 420, 3)
+        OfflineSprint("sprint_00", "volt_blades", "Circuito Voltáico", "Derrote 30 monstros.", 30, 280, 2),
+        OfflineSprint("sprint_01", "toxic_bow", "Pulso Tóxico", "Derrote 24 monstros.", 24, 300, 2),
+        OfflineSprint("sprint_02", "pulsar_cannon", "Impacto Pulsar", "Derrote 40 monstros.", 40, 360, 3),
+        OfflineSprint("sprint_03", "scrap_hammer", "Sucata Pesada", "Derrote 18 elites.", 18, 420, 3),
+        OfflineSprint("sprint_04", "prism_spear", "Luz de Prisma", "Derrote 32 monstros.", 32, 340, 2),
+        OfflineSprint("sprint_05", "echo_chakrams", "Eco Cortante", "Derrote 28 monstros.", 28, 320, 2),
+        OfflineSprint("sprint_06", "nova_gauntlets", "Combo Nova", "Derrote 45 monstros.", 45, 390, 3),
+        OfflineSprint("sprint_07", "rift_mortar", "Artilharia de Fenda", "Derrote 35 elites.", 35, 450, 3),
+        OfflineSprint("sprint_08", "arc_whip", "Arco de Contenção", "Aplique 25 golpes de controle.", 25, 350, 2),
+        OfflineSprint("sprint_09", "frost_rail", "Linha Glacial", "Derrote 26 monstros.", 26, 380, 3),
+        OfflineSprint("sprint_10", "solar_lance", "Luz Solar", "Derrote 34 monstros.", 34, 400, 3),
+        OfflineSprint("sprint_11", "grav_hammer", "Peso Graviton", "Derrote 20 elites.", 20, 460, 3),
+        OfflineSprint("sprint_12", "drone_staff", "Esquadrão Drone", "Complete 12 caçadas.", 12, 370, 2),
+        OfflineSprint("sprint_13", "plasma_twins", "Dança Plasma", "Derrote 50 monstros.", 50, 430, 3),
+        OfflineSprint("sprint_14", "vortex_scepter", "Colapso Vórtice", "Derrote 30 monstros.", 30, 390, 3),
+        OfflineSprint("sprint_15", "meteor_knuckle", "Punho Meteoro", "Derrote 24 elites.", 24, 480, 4),
+        OfflineSprint("sprint_16", "aether_rifle", "Mira Aether", "Derrote 42 monstros.", 42, 410, 3),
+        OfflineSprint("sprint_17", "bloom_blade", "Jardim Cortante", "Colete 28 núcleos.", 28, 420, 3),
+        OfflineSprint("sprint_18", "thunder_orb", "Tempestade Orbital", "Derrote 36 monstros.", 36, 430, 4),
+        OfflineSprint("sprint_19", "mono_drill", "Perfuração", "Derrote 22 elites.", 22, 500, 4),
+        OfflineSprint("sprint_20", "starlight_fan", "Constelação", "Derrote 38 monstros.", 38, 440, 3),
+        OfflineSprint("sprint_21", "phase_blaster", "Salto Fásico", "Complete 10 rifts.", 10, 520, 4),
+        OfflineSprint("sprint_22", "ember_halo", "Halo Incandescente", "Derrote 44 monstros.", 44, 460, 4),
+        OfflineSprint("sprint_23", "kinetic_scythe", "Foice Cinética", "Derrote 28 elites.", 28, 540, 4)
     )
 
     fun navigate(target: RooftopScreen) { screen = target }
