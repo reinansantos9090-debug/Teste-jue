@@ -1789,10 +1789,34 @@ private class Game3DEngine(private val context: Context) {
 
     fun performanceSnapshot(): PerformanceSnapshot = performanceTelemetry.snapshot()
 
-    fun snapshotEnemies(): List<EnemyEntity> = enemies.filterNot { it.dead }
-    fun snapshotProjectiles(): List<Projectile> = projectiles.toList()
-    fun snapshotDrops(): List<Drop> = drops.toList()
-    fun snapshotParticles(): List<Particle> = particles.toList()
+    private val enemyView = ArrayList<EnemyEntity>(24)
+    private val projectileView = ArrayList<Projectile>(24)
+    private val dropView = ArrayList<Drop>(48)
+    private val particleView = ArrayList<Particle>(360)
+
+    fun snapshotEnemies(): List<EnemyEntity> {
+        enemyView.clear()
+        for (e in enemies) if (!e.dead) enemyView.add(e)
+        return enemyView
+    }
+
+    fun snapshotProjectiles(): List<Projectile> {
+        projectileView.clear()
+        projectileView.addAll(projectiles)
+        return projectileView
+    }
+
+    fun snapshotDrops(): List<Drop> {
+        dropView.clear()
+        dropView.addAll(drops)
+        return dropView
+    }
+
+    fun snapshotParticles(): List<Particle> {
+        particleView.clear()
+        particleView.addAll(particles)
+        return particleView
+    }
 }
 
 private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Renderer {
@@ -1805,6 +1829,7 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
     private var fogColorHandle = 0
     private var lightHandle = 0
     private var fogDensityHandle = 0
+    private var rimHandle = 0
     private var viewHandle = 0
 
     private val projection = FloatArray(16)
@@ -1837,6 +1862,10 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
         fogColorHandle = GLES20.glGetUniformLocation(program, "uFogColor")
         lightHandle = GLES20.glGetUniformLocation(program, "uLightDir")
         fogDensityHandle = GLES20.glGetUniformLocation(program, "uFogDensity")
+        rimHandle = GLES20.glGetUniformLocation(program, "uRimStrength")
+
+        GLES20.glEnableVertexAttribArray(positionHandle)
+        GLES20.glEnableVertexAttribArray(normalHandle)
 
         meshes["cube"] = Mesh.cube()
         meshes["sphere"] = Mesh.sphere(engine.renderProfile().sphereSegments, engine.renderProfile().sphereRings)
@@ -1886,7 +1915,10 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
             0f
         )
 
+        val biome = engine.activeBiome()
+        val lightStrength = 0.82f + biome.ambientIntensity * 0.10f
         GLES20.glUniform3f(lightHandle, -0.55f, -1.0f, -0.35f)
+        GLES20.glUniform1f(rimHandle, 0.10f + 0.06f * lightStrength)
         val night = 0.5f - 0.5f * cos((time % 600f) / 600f * Math.PI * 2.0).toFloat()
         if (engine.scene == SceneMode.HUB) {
             val r = 0.12f - night * 0.04f
@@ -2104,9 +2136,12 @@ private object ShaderProgram {
             uniform vec4 uColor;
             uniform vec4 uFogColor;
             uniform float uFogDensity;
+            uniform float uRimStrength;
             void main() {
                 vec3 lit = uColor.rgb * vLight;
                 float fog = clamp(1.0 - exp(-vDepth * uFogDensity), 0.0, 1.0);
+                float rim = pow(1.0 - max(vLight - 0.22, 0.0), 1.8) * uRimStrength;
+                lit += uColor.rgb * rim;
                 gl_FragColor = vec4(mix(lit, uFogColor.rgb, fog), uColor.a);
             }
         """.trimIndent()
@@ -2162,16 +2197,12 @@ private class Mesh(private val vertices: FloatArray, private val normals: FloatA
         GLES20.glUniform4f(colorHandle, color[0], color[1], color[2], 1f)
 
         vb.position(0)
-        GLES20.glEnableVertexAttribArray(pos)
         GLES20.glVertexAttribPointer(pos, 3, GLES20.GL_FLOAT, false, 0, vb)
 
         nb.position(0)
-        GLES20.glEnableVertexAttribArray(normal)
         GLES20.glVertexAttribPointer(normal, 3, GLES20.GL_FLOAT, false, 0, nb)
 
         GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, count)
-        GLES20.glDisableVertexAttribArray(pos)
-        GLES20.glDisableVertexAttribArray(normal)
     }
 
     companion object {
