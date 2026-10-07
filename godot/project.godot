@@ -15,6 +15,8 @@ renderer/rendering_method="mobile"
 renderer/rendering_method.mobile="mobile"
 environment/defaults/default_clear_color=Color(0.018,0.025,0.05,1)
 textures/default_filters/use_nearest_mipmap_filter=false
+textures/vram_compression/import_etc2_astc=true
+textures/vram_compression/import_s3tc_bptc=true
 anti_aliasing/quality/msaa_3d=2
 
 [input]
