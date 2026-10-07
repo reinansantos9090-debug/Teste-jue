@@ -13,10 +13,10 @@ jobs:
     steps:
       - name: Cancel older queued or running workflow runs
         env:
-          GH_TOKEN: ${ github.token }
-          CURRENT_RUN: ${ github.run_id }
-          WORKFLOW_NAME: ${ github.workflow }
-          BRANCH_NAME: ${ github.ref_name }
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_RUN: ${{ github.run_id }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          BRANCH_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           gh run list --repo "$GITHUB_REPOSITORY" --workflow "$WORKFLOW_NAME" --branch "$BRANCH_NAME" --limit 100 --json databaseId,status --jq '.[] | select(.databaseId < ('"$CURRENT_RUN"' | tonumber)) | select(.status == "queued" or .status == "in_progress" or .status == "waiting" or .status == "pending") | .databaseId' |
@@ -28,7 +28,7 @@ jobs:
   build:
     needs: cancel-older-runs
     concurrency:
-      group: android-3d-build-${ github.ref }
+      group: android-3d-build-${{ github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
     permissions:
@@ -86,11 +86,12 @@ jobs:
             total=$((total + lines))
           done < <(find . -type f \( -name '*.kt' -o -name '*.kts' -o -name '*.java' -o -name '*.gradle' -o -name '*.py' -o -name '*.gd' \) -not -path './.git/*' -print0)
           echo "TOTAL_SOURCE_LINES=$total"
+          echo "TOTAL_SOURCE_LINES=$total" >> "$GITHUB_STEP_SUMMARY"
       - name: Publish Godot APK
         uses: actions/upload-artifact@v4
         with:
           name: aetheria-echoes-godot-debug-apk
-          path: ${${ runner.temp }}/aetheria-echoes-godot-debug.apk
+          path: ${{ runner.temp }}/aetheria-echoes-godot-debug.apk
           if-no-files-found: error
           retention-days: 14
       - name: Build Android host APK
