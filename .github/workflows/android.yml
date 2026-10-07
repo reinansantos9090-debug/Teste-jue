@@ -62,6 +62,27 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
+      - name: Set up Godot 4.7.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/godot"
+          curl -L --fail --retry 3 -o "$RUNNER_TEMP/godot/godot.zip" \\
+            "https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip"
+          unzip -q "$RUNNER_TEMP/godot/godot.zip" -d "$RUNNER_TEMP/godot"
+          chmod +x "$RUNNER_TEMP/godot/Godot_v4.7.2-stable_linux.x86_64"
+          echo "GODOT_BIN=$RUNNER_TEMP/godot/Godot_v4.7.2-stable_linux.x86_64" >> "$GITHUB_ENV"
+
+      - name: Validate Godot project
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --editor --quit --path godot
+          test -f godot/project.godot
+          test -f godot/export_presets.cfg
+          test -f godot/scenes/Main.tscn
+          test -f godot/scripts/game_root.gd
+
       - name: Count source lines
         shell: bash
         run: |
