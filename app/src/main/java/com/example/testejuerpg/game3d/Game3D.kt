@@ -303,32 +303,32 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
         c.drawText("Armas têm kits fixos de habilidades. Escolha e domine a que preferir.", 24f, 70f, paint)
 
         for (i in WEAPONS.indices) {
-            val top = 92f + i * 106f
+        val cols = 4
+        val gap = 10f
+        val cardW = (w - 36f - gap * (cols - 1)) / cols
+        for (i in WEAPONS.indices) {
+            val col = i % cols
+            val row = i / cols
+            val left = 18f + col * (cardW + gap)
+            val top = 92f + row * 83f
             paint.color = if (i == engine.weaponIndex) 0xFF3A2E61.toInt() else 0xFF172033.toInt()
-            panel.set(18f, top, w - 18f, top + 88f)
-            c.drawRoundRect(panel, 18f, 18f, paint)
+            panel.set(left, top, left + cardW, top + 70f)
+            c.drawRoundRect(panel, 13f, 13f, paint)
             paint.color = 0xFFFFFFFF.toInt()
-            paint.textSize = 17f
-            c.drawText(WEAPONS[i].name, 34f, top + 29f, paint)
+            paint.textSize = 11f
+            c.drawText(WEAPONS[i].name.take(18), left + 10f, top + 19f, paint)
             paint.color = 0xFFB4C5DA.toInt()
-            paint.textSize = 11f
-            c.drawText(WEAPONS[i].role, 34f, top + 47f, paint)
-            paint.color = 0xFF8CA8C8.toInt()
-            paint.textSize = 10f
-            c.drawText(
-                "1 " + WEAPONS[i].skill1 + " • 2 " + WEAPONS[i].skill2 + " • 3 " + WEAPONS[i].skill3,
-                34f,
-                top + 65f,
-                paint
-            )
-            paint.color = 0xFF765EFF.toInt()
-            panel.set(w - 116f, top + 18f, w - 32f, top + 64f)
-            c.drawRoundRect(panel, 14f, 14f, paint)
-            paint.color = 0xFFFFFFFF.toInt()
-            paint.textAlign = Paint.Align.CENTER
-            paint.textSize = 11f
-            c.drawText(if (i == engine.weaponIndex) "EQUIPADA" else "EQUIPAR", w - 74f, top + 46f, paint)
-            paint.textAlign = Paint.Align.LEFT
+            paint.textSize = 8f
+            c.drawText(WEAPONS[i].role.take(20), left + 10f, top + 35f, paint)
+            paint.color = 0xFF86A4C8.toInt()
+            paint.textSize = 7f
+            c.drawText("1 " + WEAPONS[i].skill1.take(8) + " • 2 " + WEAPONS[i].skill2.take(8), left + 10f, top + 50f, paint)
+            paint.color = WEAPONS[i].tint
+            c.drawCircle(left + cardW - 17f, top + 17f, 6f, paint)
+            paint.color = if (i == engine.weaponIndex) 0xFF8CF4BE.toInt() else 0xFF765EFF.toInt()
+            paint.textSize = 7f
+            c.drawText(if (i == engine.weaponIndex) "ATIVA" else "EQUIPAR", left + 10f, top + 63f, paint)
+        }
         }
 
         paint.color = 0xFF1E2A3F.toInt()
@@ -796,9 +796,14 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
         if (engine.scene == SceneMode.INVENTORY) {
             if (event.actionMasked == MotionEvent.ACTION_UP) {
                 val y = event.y
-                if (y > 92f && y < 92f + 4 * 106f) {
-                    val idx = floor((y - 92f) / 106f).toInt().coerceIn(0, 3)
-                    engine.equipWeapon(idx)
+                val cols = 4
+                val gap = 10f
+                val cardW = (width.toFloat() - 36f - gap * (cols - 1)) / cols
+                if (y > 92f && y < 92f + 6 * 83f && event.x >= 18f) {
+                    val col = ((event.x - 18f) / (cardW + gap)).toInt().coerceIn(0, cols - 1)
+                    val row = ((y - 92f) / 83f).toInt().coerceIn(0, 5)
+                    val idx = row * cols + col
+                    if (idx in WEAPONS.indices) engine.equipWeapon(idx)
                     invalidate()
                 }
                 if (y > height - 70f) {
@@ -1370,9 +1375,9 @@ private class Game3DEngine(private val context: Context) {
     }
 
     private fun skill1() {
-        skillTimers[0] = (if (weaponIndex == 1) 4.0f else 3.0f) * hunterDirector.cooldownMultiplier("weapon_" + weaponIndex)
+        skillTimers[0] = (if (WEAPONS[weaponIndex].archetype == 1) 4.0f else 3.0f) * hunterDirector.cooldownMultiplier("weapon_" + weaponIndex)
         if (WEAPONS[weaponIndex].archetype == 1) {
-            repeat(if (WEAPONS[weaponIndex].archetype == 1 && WEAPONS[weaponIndex].name.length > 14) 5 else 3) {
+            repeat(3) {
                 val t = nearestEnemy(11f)
                 if (t != null) fireProjectile(t.pos, 46f * hunterDirector.damageMultiplier("weapon_" + weaponIndex), 1.15f)
             }
