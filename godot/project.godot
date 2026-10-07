@@ -38,3 +38,6 @@ attack={
 "deadzone":0.2,
 "events":[Object(InputEventKey,"physical_keycode":32)]
 }
+
+[debug]
+gdscript/warnings/inference_on_variant=1
