@@ -32,6 +32,8 @@ import com.example.testejuerpg.offline.OfflineMode
 import com.example.testejuerpg.offline.systems.OfflineStoryCampaign
 import com.example.testejuerpg.offline.systems.OfflineBiomeCatalog
 import com.example.testejuerpg.offline.systems.OfflineVisualCatalog
+import com.example.testejuerpg.offline.systems.OfflineWeaponCatalog
+import com.example.testejuerpg.offline.systems.OfflineBossCatalog
 
 private data class V3(var x: Float, var y: Float, var z: Float) {
     fun set(other: V3) { x = other.x; y = other.y; z = other.z }
@@ -50,26 +52,35 @@ private enum class EnemyKind(
     AETHER_SLIME("Slime de Aether", 90f, 9f, 1.25f, 0.65f),
     NEON_STALKER("Perseguidor Neon", 125f, 13f, 1.85f, 0.55f),
     SCRAP_GOLEM("Golem de Sucata", 240f, 20f, 0.90f, 0.82f),
+    PRISM_MOTH("Mariposa Prisma", 74f, 10f, 2.20f, 0.46f),
+    SCRAP_DRONE("Drone de Sucata", 108f, 14f, 1.70f, 0.50f),
+    PLASMA_EEL("Enguia de Plasma", 132f, 15f, 1.45f, 0.58f),
+    VOID_BEETLE("Besouro do Vazio", 158f, 17f, 1.30f, 0.63f),
+    AURORA_WRAITH("Espectro Aurora", 118f, 19f, 1.95f, 0.52f),
+    MAGNET_HARE("Lebre Magnética", 101f, 12f, 2.40f, 0.48f),
+    CRYSTAL_BRUTE("Bruto Cristalino", 285f, 24f, 0.78f, 0.90f),
+    MEMORY_ECHO("Eco de Memória", 176f, 21f, 1.05f, 0.66f),
+    PORTAL_LEECH("Sanguessuga de Portal", 148f, 18f, 1.55f, 0.56f),
     OVERLOAD_TITAN("Titã de Sobrecarga", 900f, 28f, 0.78f, 1.55f)
 }
 
 private data class WeaponPreset(
+    val id: String,
     val name: String,
     val role: String,
+    val archetype: Int,
     val mainDamage: Float,
     val mainRange: Float,
     val cooldown: Float,
     val skill1: String,
     val skill2: String,
-    val skill3: String
+    val skill3: String,
+    val tint: Int
 )
 
-private val WEAPONS = listOf(
-    WeaponPreset("Lâminas Voltáicas", "Dano corpo a corpo", 38f, 2.4f, 0.38f, "Dash", "Corte Tempestade", "Pulso de Cura"),
-    WeaponPreset("Arco Tóxico", "Dano à distância", 42f, 10.5f, 0.34f, "Rajada Tripla", "Dash", "Antídoto"),
-    WeaponPreset("Canhão Pulsar", "Dano em área", 34f, 10f, 0.42f, "Disparo Triplo", "Onda de Choque", "Nanocura"),
-    WeaponPreset("Martelo Sucateiro", "Dano pesado", 52f, 2.7f, 0.55f, "Dash", "Terremoto", "Pulso Reparador")
-)
+private val WEAPONS: List<WeaponPreset> = OfflineWeaponCatalog.all.map {
+    WeaponPreset(it.id, it.name, it.role, it.archetype, it.damage, it.range, it.cooldown, it.skill1, it.skill2, it.skill3, it.tint)
+}
 
 private data class EnemyEntity(
     val id: Int,
@@ -84,7 +95,8 @@ private data class EnemyEntity(
     var summonTimer: Float = 10f,
     var phase2: Boolean = false,
     var dead: Boolean = false,
-    var elite: Boolean = false
+    var elite: Boolean = false,
+    var bossProfileId: String = "overload_titan"
 )
 
 private data class Projectile(
@@ -1013,18 +1025,19 @@ private class Game3DEngine(private val context: Context) {
             if (e.dead) continue
             e.hitFlash = max(0f, e.hitFlash - dt)
             if (e.kind == EnemyKind.OVERLOAD_TITAN) {
+                val profile = OfflineBossCatalog.forId(e.bossProfileId)
                 e.phase2 = e.hp <= bossMaxHp * 0.50f
                 e.specialTimer = max(0f, e.specialTimer - dt)
                 e.summonTimer = max(0f, e.summonTimer - dt)
                 if (e.phase2 && e.specialTimer <= 0f) {
-                    e.specialTimer = 1.6f
-                    spawnBossProjectile(e)
-                    spawnBurst(e.pos, 0.25f, floatArrayOf(1f, 0.25f, 0.55f))
+                    e.specialTimer = profile.projectileInterval
+                    repeat(if (profile.id == "storm_behemoth") 3 else 1) { spawnBossProjectile(e) }
+                    spawnBurst(e.pos, 0.25f, rgbColor(profile.aura))
                 }
-                if (e.phase2 && e.summonTimer <= 0f && enemies.count { !it.dead } < 9) {
-                    e.summonTimer = 10f
-                    repeat(2) { spawnEnemy() }
-                    spawnBurst(e.pos, 0.35f, floatArrayOf(0.75f, 0.25f, 1f))
+                if (e.phase2 && e.summonTimer <= 0f && enemies.count { !it.dead } < min(9, performanceGovernor.allowedEnemies())) {
+                    e.summonTimer = profile.summonInterval
+                    repeat(if (profile.id == "aether_guardian") 3 else 2) { spawnEnemy() }
+                    spawnBurst(e.pos, 0.35f, rgbColor(profile.aura))
                 }
             }
             if (e.poison > 0f) {
@@ -1044,8 +1057,11 @@ private class Game3DEngine(private val context: Context) {
 
             if (dist > 1.6f + e.kind.radius) {
                 val inv = 1f / max(0.001f, dist)
-                e.pos.x += dx * inv * e.kind.speed * dt
-                e.pos.z += dz * inv * e.kind.speed * dt
+                val speedMultiplier = if (e.kind == EnemyKind.OVERLOAD_TITAN && e.phase2) {
+                    OfflineBossCatalog.forId(e.bossProfileId).phase2Multiplier
+                } else 1f
+                e.pos.x += dx * inv * e.kind.speed * speedMultiplier * dt
+                e.pos.z += dz * inv * e.kind.speed * speedMultiplier * dt
             } else if (e.attackTimer <= 0f) {
                 e.attackTimer = if (e.kind == EnemyKind.OVERLOAD_TITAN) 1.2f else 1.5f
                 takeDamage(e.kind.attack * if (e.elite) 1.25f else 1f)
@@ -1216,7 +1232,7 @@ private class Game3DEngine(private val context: Context) {
         projectiles += Projectile(
             V3(boss.pos.x, boss.pos.y, boss.pos.z),
             V3(dx / distance * 7.0f, 0f, dz / distance * 7.0f),
-            22f,
+            OfflineBossCatalog.forId(boss.bossProfileId).projectileDamage,
             2.8f,
             false
         )
@@ -1224,8 +1240,16 @@ private class Game3DEngine(private val context: Context) {
 
     private fun spawnEnemy(elite: Boolean = false) {
         val choices = when {
-            huntKills >= 8 -> listOf(EnemyKind.AETHER_SLIME, EnemyKind.NEON_STALKER, EnemyKind.SCRAP_GOLEM)
-            else -> listOf(EnemyKind.AETHER_SLIME, EnemyKind.NEON_STALKER)
+            huntKills < 4 -> listOf(EnemyKind.AETHER_SLIME, EnemyKind.NEON_STALKER, EnemyKind.PRISM_MOTH)
+            huntKills < 10 -> listOf(
+                EnemyKind.AETHER_SLIME, EnemyKind.NEON_STALKER, EnemyKind.SCRAP_GOLEM,
+                EnemyKind.SCRAP_DRONE, EnemyKind.PLASMA_EEL, EnemyKind.MAGNET_HARE
+            )
+            else -> listOf(
+                EnemyKind.NEON_STALKER, EnemyKind.SCRAP_GOLEM, EnemyKind.VOID_BEETLE,
+                EnemyKind.AURORA_WRAITH, EnemyKind.CRYSTAL_BRUTE, EnemyKind.MEMORY_ECHO,
+                EnemyKind.PORTAL_LEECH
+            )
         }
         spawnEnemyOfKind(choices[random.nextInt(choices.size)], elite)
     }
@@ -1252,15 +1276,21 @@ private class Game3DEngine(private val context: Context) {
         bossSpawned = true
         bossActive = true
         val difficulty = hunterDirector.rift()?.difficulty ?: 1
-        bossMaxHp = if (activityMode == OfflineMode.RIFT_BOSS) 900f + difficulty * 120f else 900f
+        val profile = if (activityMode == OfflineMode.STORY) {
+            OfflineBossCatalog.forStoryName(storyCampaign.currentChapter().targetId)
+        } else {
+            OfflineBossCatalog.all[((difficulty - 1).coerceIn(0, OfflineBossCatalog.all.lastIndex))]
+        }
+        bossMaxHp = profile.maxHp + if (activityMode == OfflineMode.RIFT_BOSS) difficulty * 120f else 0f
         bossHp = bossMaxHp
         enemies += EnemyEntity(
             nextEnemyId++,
             EnemyKind.OVERLOAD_TITAN,
             V3(0f, 1.55f, -9f),
-            bossMaxHp
+            bossMaxHp,
+            bossProfileId = profile.id
         )
-        spawnBurst(V3(0f, 1f, -9f), 1f, floatArrayOf(0.85f, 0.25f, 1f))
+        spawnBurst(V3(0f, 1f, -9f), 1f, rgbColor(profile.aura))
         vibrate(90)
     }
 
@@ -1323,8 +1353,8 @@ private class Game3DEngine(private val context: Context) {
         primaryTimer = weapon.cooldown * hunterDirector.cooldownMultiplier(weaponId) / hunterDirector.attackSpeedMultiplier(weaponId)
         val target = nearestEnemy(weapon.mainRange) ?: return
 
-        if (weaponIndex == 0 || weaponIndex == 3) {
-            meleeAttack(target, weapon.mainDamage * hunterDirector.damageMultiplier(weaponId), if (weaponIndex == 3) 2.8f else 2.4f)
+        if (weapon.archetype == 0 || weapon.archetype == 3) {
+            meleeAttack(target, weapon.mainDamage * hunterDirector.damageMultiplier(weaponId), if (weapon.archetype == 3) 2.8f else 2.4f)
         } else {
             fireProjectile(target.pos, weapon.mainDamage * hunterDirector.damageMultiplier(weaponId), 0.9f + weapon.mainRange * 0.03f)
         }
@@ -1341,8 +1371,8 @@ private class Game3DEngine(private val context: Context) {
 
     private fun skill1() {
         skillTimers[0] = (if (weaponIndex == 1) 4.0f else 3.0f) * hunterDirector.cooldownMultiplier("weapon_" + weaponIndex)
-        if (weaponIndex == 1) {
-            repeat(3) {
+        if (WEAPONS[weaponIndex].archetype == 1) {
+            repeat(if (WEAPONS[weaponIndex].archetype == 1 && WEAPONS[weaponIndex].name.length > 14) 5 else 3) {
                 val t = nearestEnemy(11f)
                 if (t != null) fireProjectile(t.pos, 46f * hunterDirector.damageMultiplier("weapon_" + weaponIndex), 1.15f)
             }
@@ -1353,23 +1383,28 @@ private class Game3DEngine(private val context: Context) {
 
     private fun skill2() {
         skillTimers[1] = 6.0f * hunterDirector.cooldownMultiplier("weapon_" + weaponIndex)
-        val radius = when (weaponIndex) {
+        val radius = when (WEAPONS[weaponIndex].archetype) {
             0 -> 3.3f
-            2 -> 3.8f
+            1 -> 2.8f
+            2 -> 4.3f
+            3 -> 3.4f
             else -> 3.7f
         }
-        val damage = when (weaponIndex) {
+        val damage = when (WEAPONS[weaponIndex].archetype) {
             0 -> 64f
-            2 -> 54f
-            3 -> 82f
-            else -> 58f
+            1 -> 58f
+            2 -> 72f
+            3 -> 86f
+            else -> 62f
         }
-        if (weaponIndex == 1) dash() else areaAttack(radius, damage * hunterDirector.damageMultiplier("weapon_" + weaponIndex))
+        if (WEAPONS[weaponIndex].archetype == 1) dash()
+        else areaAttack(radius, damage * hunterDirector.damageMultiplier("weapon_" + weaponIndex))
     }
 
     private fun skill3() {
         skillTimers[2] = 12.0f * hunterDirector.cooldownMultiplier("weapon_" + weaponIndex)
-        hp = min(maxHp, hp + maxHp * 0.36f * hunterDirector.healingMultiplier("weapon_" + weaponIndex))
+        val healFactor = if (WEAPONS[weaponIndex].archetype == 4) 0.48f else 0.36f
+        hp = min(maxHp, hp + maxHp * healFactor * hunterDirector.healingMultiplier("weapon_" + weaponIndex))
         spawnBurst(player, 0.65f, floatArrayOf(0.4f, 1f, 0.7f))
         vibrate(34)
     }
@@ -1783,7 +1818,7 @@ private class Game3DEngine(private val context: Context) {
         gold = prefs.getInt("gold", 50)
         aetherCores = prefs.getInt("cores", 0)
         kills = prefs.getInt("kills", 0)
-        weaponIndex = prefs.getInt("weapon", 1).coerceIn(0, 3)
+        weaponIndex = prefs.getInt("weapon", 1).coerceIn(0, WEAPONS.lastIndex)
         player.x = prefs.getFloat("px", 0f)
         player.z = prefs.getFloat("pz", 5f)
         playerName = prefs.getString("name", "Caçador") ?: "Caçador"
@@ -2161,12 +2196,7 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
         drawSphere(p.x + 0.34f, 1.25f, p.z, 0.12f, accent)
         drawTorus(p.x, 1.34f, p.z, 0.58f, accent)
 
-        val weaponColor = when (engine.weaponIndex) {
-            0 -> rgb(0x7FD7FF)
-            1 -> rgb(0x7AFF91)
-            2 -> rgb(0xC59AFF)
-            else -> rgb(0xFFB76A)
-        }
+        val weaponColor = rgb(WEAPONS[engine.weaponIndex].tint)
         drawCube(
             p.x + 0.6f,
             1.0f,
