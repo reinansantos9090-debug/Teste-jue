@@ -314,7 +314,6 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
         paint.textSize = 12f
         c.drawText("Armas têm kits fixos de habilidades. Escolha e domine a que preferir.", 24f, 70f, paint)
 
-        for (i in WEAPONS.indices) {
         val cols = 4
         val gap = 10f
         val cardW = (w - 36f - gap * (cols - 1)) / cols
@@ -723,6 +722,9 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
         paint.textSize = 12f
         c.drawText(engine.bossDisplayName().uppercase(Locale.getDefault()), w / 2f, 147f, paint)
         drawBar(c, left + 12f, 153f, bw - 24f, 12f, engine.bossHp / engine.bossMaxHp, 0xFFFF4C77.toInt())
+        paint.color = if (engine.bossWeakPointOpen()) 0xFFFFE477.toInt() else 0xFF9AAECC.toInt()
+        paint.textSize = 8f
+        c.drawText(if (engine.bossWeakPointOpen()) "PONTO FRACO ABERTO • DANO x2" else "PONTO FRACO FECHADO", left + 12f, 181f, paint)
         paint.textAlign = Paint.Align.LEFT
     }
 
@@ -908,6 +910,8 @@ private class GameHUDView(context: Context, private val engine: Game3DEngine) : 
     }
 }
 
+private data class MapObstacleView(val x: Float, val z: Float, val halfX: Float, val halfZ: Float)
+
 private class Game3DEngine(private val context: Context) {
     @Volatile var scene: SceneMode = SceneMode.HUB
         private set
@@ -981,6 +985,8 @@ private class Game3DEngine(private val context: Context) {
     private var huntKills = 0
     private var bossSpawned = false
     private var bossDead = false
+    private var bossPatternTime = 0f
+    private var storyVictoryTimer = 0f
     var screenShake = 0f
         private set
     var onUiInvalidate: (() -> Unit)? = null
@@ -1513,8 +1519,9 @@ private class Game3DEngine(private val context: Context) {
         val len = sqrt(moveX * moveX + moveY * moveY)
         val dx = if (len > 0.1f) moveX / len else 0f
         val dz = if (len > 0.1f) moveY / len else -1f
-        player.x = (player.x + dx * 4.2f).coerceIn(-18f, 18f)
-        player.z = (player.z + dz * 4.2f).coerceIn(-18f, 18f)
+        val d = mapRuntime.resolvePlayer(player.x + dx * 4.2f, player.z + dz * 4.2f, 0.55f)
+        player.x = d.first
+        player.z = d.second
         screenShake = 0.22f
         spawnBurst(player, 0.22f, floatArrayOf(0.45f, 0.78f, 1f))
     }
@@ -1535,7 +1542,8 @@ private class Game3DEngine(private val context: Context) {
             val dx = e.pos.x - player.x
             val dz = e.pos.z - player.z
             if (dx * dx + dz * dz <= radius * radius) {
-                e.hp -= damage
+                val finalDamage = if (e.kind == EnemyKind.OVERLOAD_TITAN && bossWeakPointOpen()) damage * 2f else damage
+                e.hp -= finalDamage
                 e.hitFlash = 0.16f
                 if (weaponIndex == 1) e.poison = 5f
                 spawnBurst(e.pos, 0.14f, floatArrayOf(0.55f, 0.82f, 1f))
@@ -1625,6 +1633,9 @@ private class Game3DEngine(private val context: Context) {
 
     fun storySnapshot() = storyCampaign.snapshot()
 
+    fun bossWeakPointOpen(): Boolean =
+        bossActive && ((bossPatternTime % 5f) < 1.35f || (bossPatternTime % 5f) > 4.35f)
+
     fun bossDisplayName(): String {
         if (activityMode == OfflineMode.STORY) {
             return OfflineBossCatalog.forStoryName(storyCampaign.currentChapter().targetId).name
@@ -1698,7 +1709,12 @@ private class Game3DEngine(private val context: Context) {
         hunterDirector.grantStoryReward(completed.rewardEnergy, completed.rewardGold)
         addXp(260f + completed.number * 12f)
         audioBus.play("level")
-        objectiveText = "CAPÍTULO " + completed.number + " CONCLUÍDO • +" + completed.rewardGold + " Ouro"
+        objectiveText = if (completed.number >= 30) {
+            "CAMPANHA CONCLUÍDA • AETHERIA FOI SALVA"
+        } else {
+            "CAPÍTULO " + completed.number + " CONCLUÍDO • +" + completed.rewardGold + " Ouro"
+        }
+        storyVictoryTimer = 3.8f
         historyArchive.record(
             "chapter_" + completed.number,
             completed.title,
@@ -1715,6 +1731,8 @@ private class Game3DEngine(private val context: Context) {
         bossActive = false
         bossSpawned = false
         bossDead = false
+        bossPatternTime = 0f
+        storyVictoryTimer = 0f
         activityCompleted = false
         huntKills = 0
         storyWaveTimer = 0f
@@ -1994,6 +2012,9 @@ private class Game3DEngine(private val context: Context) {
     }
 
     fun allowedFireflies(): Int = performanceGovernor.allowedFireflies()
+    fun mapObstacles(): List<MapObstacleView> = mapRuntime.obstacles.map {
+        OfflineMapRuntimeObstacle(it.x, it.z, it.halfX, it.halfZ)
+    }
     fun renderProfile(): MobileRenderProfile = renderProfile
 
     fun recordRenderFrame(frameMs: Float, drawCalls: Int) {
@@ -2056,6 +2077,10 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
     private val temp = FloatArray(16)
     private val camera = FloatArray(3)
     private val target = FloatArray(3)
+    private val smoothTarget = FloatArray(3)
+    private val smoothCamera = FloatArray(3)
+    private var cameraReady = false
+    private var lastFrameNs = 0L
     private val meshes = HashMap<String, Mesh>()
     private var width = 1
     private var height = 1
@@ -2106,18 +2131,33 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
 
     override fun onDrawFrame(gl: javax.microedition.khronos.opengles.GL10?) {
         val frameStart = System.nanoTime()
+        val frameDt = if (lastFrameNs == 0L) 1f / 60f else ((frameStart - lastFrameNs).coerceAtMost(100_000_000L) / 1_000_000_000f)
+        lastFrameNs = frameStart
         drawCalls = 0
         engine.tick()
-        time += 0.016f
+        time += frameDt.coerceIn(0.008f, 0.033f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         GLES20.glUseProgram(program)
 
+        val smooth = (1f - Math.exp((-10f * frameDt).toDouble())).toFloat()
         target[0] = engine.player.x
         target[1] = 0.8f
         target[2] = engine.player.z
-        camera[0] = engine.player.x + 8.5f + sin(time * 0.2f) * engine.screenShake
+        if (!cameraReady) {
+            smoothTarget[0] = target[0]; smoothTarget[1] = target[1]; smoothTarget[2] = target[2]
+            smoothCamera[0] = target[0] + 8.5f; smoothCamera[1] = 10.5f; smoothCamera[2] = target[2] + 8.5f
+            cameraReady = true
+        } else {
+            smoothTarget[0] += (target[0] - smoothTarget[0]) * smooth
+            smoothTarget[1] += (target[1] - smoothTarget[1]) * smooth
+            smoothTarget[2] += (target[2] - smoothTarget[2]) * smooth
+        }
+        camera[0] = smoothTarget[0] + 8.5f + sin(time * 0.2f) * engine.screenShake
         camera[1] = 10.5f + engine.screenShake * 0.8f
-        camera[2] = engine.player.z + 8.5f + cos(time * 0.2f) * engine.screenShake
+        camera[2] = smoothTarget[2] + 8.5f + cos(time * 0.2f) * engine.screenShake
+        target[0] = smoothTarget[0]
+        target[1] = smoothTarget[1]
+        target[2] = smoothTarget[2]
         Matrix.setLookAtM(
             view,
             0,
@@ -2182,6 +2222,13 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
         val biome = engine.activeBiome()
         drawCube(0f, -0.14f, 0f, 44f, 0.25f, 44f, floatArrayOf(biome.groundR, biome.groundG, biome.groundB))
         val seeds = intArrayOf(2, 5, 8, 11, 15, 19, 23, 29, 31, 37, 41, 43)
+        engine.mapObstacles().forEachIndexed { i, o ->
+            val body = if (i % 3 == 0) floatArrayOf(0.31f, 0.37f, 0.42f)
+            else if (i % 3 == 1) floatArrayOf(0.36f, 0.28f, 0.40f)
+            else floatArrayOf(0.29f, 0.41f, 0.37f)
+            drawCube(o.x, 0.48f, o.z, o.halfX, 0.48f, o.halfZ, body)
+            drawTorus(o.x, 0.96f, o.z, min(o.halfX, o.halfZ) * 0.65f, rgb(0x526B84))
+        }
         drawBiomeLandmarks(biome)
         for (i in seeds.indices) {
             val x = ((seeds[i] * 7) % 34 - 17).toFloat()
@@ -2334,6 +2381,27 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
         drawCube(p.x - 0.23f, 0.35f, p.z, 0.15f, 0.55f, 0.2f, rgb(0x18243B))
         drawCube(p.x + 0.23f, 0.35f, p.z, 0.15f, 0.55f, 0.2f, rgb(0x18243B))
 
+        // Style-specific silhouette details keep each owned skin visually distinct
+        // without shipping proprietary game assets.
+        when (engine.activeStyleIndex()) {
+            0 -> drawTorus(p.x, 2.20f, p.z, 0.46f, accent)
+            1 -> {
+                drawCube(p.x - 0.47f, 1.15f, p.z, 0.12f, 0.34f, 0.32f, headwear)
+                drawCube(p.x + 0.47f, 1.15f, p.z, 0.12f, 0.34f, 0.32f, headwear)
+            }
+            2 -> drawCube(p.x, 2.38f, p.z, 0.15f, 0.52f, 0.15f, accent)
+            3 -> {
+                drawCube(p.x - 0.58f, 1.15f, p.z, 0.16f, 0.30f, 0.42f, headwear)
+                drawCube(p.x + 0.58f, 1.15f, p.z, 0.16f, 0.30f, 0.42f, headwear)
+            }
+            4, 5 -> drawTorus(p.x, 2.35f, p.z, 0.30f, headwear)
+            6, 7 -> drawCube(p.x, 0.72f, p.z - 0.26f, 0.42f, 0.32f, 0.14f, headwear)
+            8, 9 -> drawSphere(p.x, 2.33f, p.z, 0.14f, accent)
+            10, 11 -> {
+                drawTorus(p.x, 1.00f, p.z, 0.78f, accent)
+                drawCube(p.x, 2.28f, p.z, 0.64f, 0.08f, 0.18f, headwear)
+            }
+        }
         // Style-specific headwear and chest emitter.
         drawCube(p.x, 2.20f, p.z, 0.50f, 0.09f, 0.50f, headwear)
         drawSphere(p.x + 0.34f, 1.25f, p.z, 0.12f, accent)
@@ -2397,6 +2465,10 @@ private class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Ren
             drawSphere(e.pos.x, s * 2.0f, e.pos.z, s * 0.55f, c)
             if (e.kind == EnemyKind.OVERLOAD_TITAN) {
                 drawTorus(e.pos.x, s * 2.1f, e.pos.z, s * 0.8f, rgb(bossProfile?.aura ?: 0xFF4C8F))
+                if (engine.bossWeakPointOpen()) {
+                    drawSphere(e.pos.x, s * 2.65f, e.pos.z, 0.22f, rgb(0xFFF07A))
+                    drawTorus(e.pos.x, s * 2.65f, e.pos.z, 0.42f, rgb(0xFFF07A))
+                }
             }
         }
 
