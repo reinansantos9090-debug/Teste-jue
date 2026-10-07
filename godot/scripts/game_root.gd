@@ -1,227 +1,205 @@
 extends Node3D
-## Godot runtime foundation for the offline action RPG.
+const StateScript=preload("res://scripts/core/game_state.gd")
+const SaveScript=preload("res://scripts/core/save_service.gd")
+const ContentScript=preload("res://scripts/core/content_database.gd")
+const PerfScript=preload("res://scripts/core/performance_service.gd")
+const WorldScript=preload("res://scripts/world/world_service.gd")
+const EnemyScript=preload("res://scripts/gameplay/enemy_agent.gd")
+const BossScript=preload("res://scripts/gameplay/boss_agent.gd")
+const QuestScript=preload("res://scripts/gameplay/quest_service.gd")
+const StoryScript=preload("res://scripts/gameplay/story_service.gd")
+const EventScript=preload("res://scripts/gameplay/event_service.gd")
+const InventoryScript=preload("res://scripts/gameplay/inventory_service.gd")
+const CombatScript=preload("res://scripts/gameplay/combat_service.gd")
+const AudioScript=preload("res://scripts/core/audio_service.gd")
+const HudScript=preload("res://scripts/ui/hud.gd")
+const Factory=preload("res://scripts/visuals/stylized_factory.gd")
 
-const PLAYER_SPEED := 6.0
-const ARENA_SIZE := 42.0
-const ENEMY_COUNT := 12
+var state:Node
+var save:Node
+var content:Node
+var perf:Node
+var world:Node
+var quests:Node
+var story:Node
+var events:Node
+var inventory:Node
+var combat:Node
+var audio:Node
+var hud:CanvasLayer
+var player:Node3D
+var camera:Camera3D
+var enemies:Array[Node3D]=[]
+var boss:Node3D
+var shots:Array[Node3D]=[]
+var mode:="HQ"
+var attack_ready:=true
+var skills=[true,true,true]
+var clock:=0.0
 
-var player: Node3D
-var camera: Camera3D
-var hud: CanvasLayer
-var hp := 100.0
-var level := 1
-var xp := 0
-var attack_cooldown := 0.0
-var enemies: Array[Node3D] = []
-var day_clock := 0.0
-var save_timer := 0.0
+func _ready()->void:
+    state=StateScript.new();add_child(state)
+    content=ContentScript.new();add_child(content)
+    save=SaveScript.new();add_child(save);save.setup(state);save.load_now()
+    perf=PerfScript.new();add_child(perf)
+    world=WorldScript.new();add_child(world);world.setup(self,content)
+    quests=QuestScript.new();add_child(quests);quests.setup(state,content)
+    story=StoryScript.new();add_child(story);story.setup(state)
+    events=EventScript.new();add_child(events);events.setup(state,content)
+    inventory=InventoryScript.new();add_child(inventory);inventory.setup(state)
+    audio=AudioScript.new();add_child(audio)
+    combat=CombatScript.new();add_child(combat);combat.setup(state,audio)
+    player=Node3D.new();player.name="Hunter";add_child(player)
+    _set_player()
+    camera=Camera3D.new();camera.fov=48.0;add_child(camera);camera.current=true
+    hud=HudScript.new();add_child(hud);hud.setup(state)
+    hud.attack_pressed.connect(_attack)
+    hud.ability_pressed.connect(_ability)
+    hud.portal_pressed.connect(_portal)
+    hud.inventory_pressed.connect(func():hud.set_mode("INVENTÁRIO • "+inventory.summary()))
+    hud.story_pressed.connect(_story)
+    hud.wardrobe_pressed.connect(_wardrobe)
+    world.build_hq()
+    quests.start("story_01")
 
-func _ready() -> void:
-    _build_world()
-    _build_player()
-    _build_camera()
-    _build_hud()
-    _spawn_enemies()
-    _load_offline_state()
+func _set_player()->void:
+    player.position=Vector3(0,0.1,6)
+    for c in player.get_children():c.queue_free()
+    var s=content.STYLES[0]
+    for item in content.STYLES:
+        if item["id"]==str(state.data["wardrobe"]["style"]):s=item;break
+    Factory.make_hunter(player,s["primary"],s["secondary"],s["head"])
 
-func _process(delta: float) -> void:
-    day_clock = fmod(day_clock + delta, 600.0)
-    save_timer += delta
-    _update_day_night()
-    _update_player(delta)
-    _update_enemies(delta)
-    attack_cooldown = maxf(0.0, attack_cooldown - delta)
-    if save_timer >= 5.0:
-        save_timer = 0.0
-        _save_offline_state()
+func _portal()->void:
+    audio.click()
+    if mode=="HQ":
+        mode="EXPEDITION";world.build_biome("verdant_frontier");_spawn_wave(12);hud.set_mode("EXPEDIÇÃO • FRONTEIRA ESMERALDA")
+    elif mode=="EXPEDITION":
+        mode="RIFT";world.build_biome("crystal_forest");_spawn_wave(14);_spawn_boss("overload_titan");hud.set_mode("RIFT • DOMO DA FENDA")
+    else:
+        mode="HQ";_clear_combat();world.build_hq();hud.set_mode("QG NO TERRAÇO • PORTAL CENTRAL")
 
-func _build_world() -> void:
-    var environment := WorldEnvironment.new()
-    var env := Environment.new()
-    env.background_mode = Environment.BG_COLOR
-    env.background_color = Color(0.025, 0.04, 0.08)
-    env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    env.ambient_light_color = Color(0.62, 0.68, 0.82)
-    env.ambient_light_energy = 0.85
-    environment.environment = env
-    add_child(environment)
+func _attack()->void:
+    if not attack_ready:return
+    attack_ready=false
+    var w=content.WEAPONS.get(str(state.data["loadout"]["weapon"]),content.WEAPONS["volt_blades"])
+    var target=_nearest(float(w["range"])+1.8)
+    if target:
+        var amount=combat.player_damage(w,int(state.get_hunter()["level"]),_core("damage"),_core("crit"))
+        combat.hit(target,amount)
+        combat.spawn_impact(self,target.position+Vector3(0,1,0))
+    get_tree().create_timer(float(w["rate"])*(1.0-_core("cooldown"))).timeout.connect(func():attack_ready=true)
 
-    var sun := DirectionalLight3D.new()
-    sun.name = "Sun"
-    sun.rotation_degrees = Vector3(-48.0, -28.0, 0.0)
-    sun.light_energy = 1.2
-    sun.shadow_enabled = true
-    add_child(sun)
+func _ability(i:int)->void:
+    if not skills[i]:return
+    var ids=[str(state.data["loadout"]["ability_1"]),str(state.data["loadout"]["ability_2"]),str(state.data["loadout"]["ability_3"])]
+    var a=content.ABILITIES.get(ids[i],content.ABILITIES["shock_dash"])
+    var h=state.get_hunter()
+    if float(h["energy"])<float(a["energy"]):return
+    skills[i]=false;h["energy"]=float(h["energy"])-float(a["energy"])
+    if i==0:
+        var n=_nearest(12.0)
+        if n:player.position=n.position+Vector3(0,0,1.4);combat.hit(n,50.0+float(h["level"])*4.0)
+    elif i==1:
+        for e in enemies.duplicate():
+            if is_instance_valid(e) and e.position.distance_to(player.position)<5.5:combat.hit(e,72.0+float(h["level"])*5.0)
+    else:h["hp"]=minf(float(h["max_hp"]),float(h["hp"])+42.0)
+    get_tree().create_timer(float(a["cooldown"])*(1.0-_core("cooldown"))).timeout.connect(func():skills[i]=true)
 
-    var ground := MeshInstance3D.new()
-    var mesh := BoxMesh.new()
-    mesh.size = Vector3(ARENA_SIZE, 0.4, ARENA_SIZE)
-    ground.mesh = mesh
-    ground.position.y = -0.2
-    ground.material_override = _material(Color(0.12, 0.23, 0.16))
-    add_child(ground)
+func _spawn_wave(count:int)->void:
+    _clear_combat()
+    for i in mini(count,perf.max_enemies()):_spawn_enemy(i)
 
-    for p in [
-        Vector3(-14, 0, -10), Vector3(11, 0, -12), Vector3(-10, 0, 12),
-        Vector3(14, 0, 11), Vector3(0, 0, -17), Vector3(0, 0, 17)
-    ]:
-        _spawn_prop(p)
-    _spawn_portal(Vector3(0, 1.5, -14))
+func _spawn_enemy(i:int,id:="")->void:
+    var pool=["slime","slime","stalker","chaos_moth","rift_hound","scrap_golem"]
+    var kind=id if not id.is_empty() else pool[i%pool.size()]
+    var e:=EnemyScript.new();add_child(e);e.position=player.position+Vector3(cos(i*0.9),0,sin(i*0.9))*float(8+i%4*2)
+    e.configure(kind,player,content)
+    if kind=="slime":e.attach_visual(Factory.make_slime(e,Color("#43e97c")))
+    elif kind=="scrap_golem":e.attach_visual(Factory.make_golem(e,Color("#c97959")))
+    else:e.attach_visual(Factory.make_crystal_monster(e,Color("#718bff")))
+    e.defeated.connect(_enemy_down);enemies.append(e)
 
-func _build_player() -> void:
-    player = _actor_mesh(Color(0.24, 0.68, 1.0), Vector3(0, 1, 4))
-    player.name = "Hunter"
+func _spawn_boss(id:String)->void:
+    var b:=BossScript.new();add_child(b);b.position=player.position+Vector3(0,0,-10)
+    b.configure_boss(id,player,content);b.attach_visual(Factory.make_golem(b,Color("#7d5ce8"),Color("#ffd86b")))
+    b.phase_changed.connect(func(p:int):hud.set_mode("CHEFE • FASE %d" % p))
+    b.summon_requested.connect(func(k:String,n:int):for j in n:_spawn_enemy(enemies.size()+j,k))
+    b.projectile_requested.connect(_shot)
+    b.defeated.connect(_boss_down);boss=b
 
-func _build_camera() -> void:
-    camera = Camera3D.new()
-    camera.position = Vector3(0, 15, 18)
-    camera.rotation_degrees = Vector3(-32, 0, 0)
-    add_child(camera)
-    camera.current = true
+func _shot(o:Vector3,t:Vector3,d:float)->void:
+    var p:=Node3D.new();add_child(p);p.position=o;Factory.sphere(p,0.20,Vector3.ZERO,Color("#ff79db"))
+    p.set_meta("v",(t-o).normalized()*8.0);p.set_meta("d",d);shots.append(p)
 
-func _build_hud() -> void:
-    hud = CanvasLayer.new()
-    add_child(hud)
-    var title := Label.new()
-    title.text = "TESTE-JUE • OFFLINE HUNTER"
-    title.position = Vector2(32, 24)
-    title.add_theme_font_size_override("font_size", 26)
-    hud.add_child(title)
+func _enemy_down(e:Node3D,x:int)->void:
+    state.increment_stat("kills");state.add_xp(x);state.add_item("aether_core",1)
+    quests.add_progress("hunt_01");quests.add_progress("hunt_02");quests.add_progress("hunt_03");e.queue_free()
 
-    var info := Label.new()
-    info.text = "WASD mover  •  ESPAÇO atacar  •  Portal: Expeditions / Rifts"
-    info.position = Vector2(32, 62)
-    info.add_theme_font_size_override("font_size", 17)
-    hud.add_child(info)
+func _boss_down(b:Node3D,x:int)->void:
+    state.increment_stat("bosses");state.add_xp(x);state.data["world"]["completed_rifts"]+=1;quests.add_progress("boss_01")
+    b.queue_free();boss=null;hud.set_mode("RIFT CONCLUÍDO • RECOMPENSAS");audio.level_up()
 
-    var stats := Label.new()
-    stats.name = "Stats"
-    stats.position = Vector2(32, 96)
-    stats.add_theme_font_size_override("font_size", 18)
-    hud.add_child(stats)
+func _nearest(r:float)->Node3D:
+    var best:Node3D=null;var d=r
+    for e in enemies:
+        if is_instance_valid(e):
+            var x=e.position.distance_to(player.position)
+            if x<d:d=x;best=e
+    if boss and is_instance_valid(boss) and boss.position.distance_to(player.position)<d:best=boss
+    return best
 
-func _spawn_enemies() -> void:
-    for i in ENEMY_COUNT:
-        var angle := TAU * float(i) / float(ENEMY_COUNT)
-        var radius := 9.0 + float(i % 4) * 2.2
-        var enemy := _actor_mesh(
-            Color(0.75, 0.28 + float(i % 3) * 0.08, 0.52),
-            Vector3(cos(angle) * radius, 0.9, sin(angle) * radius)
-        )
-        enemy.name = "ChaosMonster_%02d" % i
-        enemies.append(enemy)
+func take_enemy_damage(d:float)->void:
+    var h=state.get_hunter()
+    if randf()<_core("dodge"):return
+    h["hp"]=maxf(0.0,float(h["hp"])-d)
+    if float(h["hp"])<=0.0:
+        state.increment_stat("deaths");h["hp"]=h["max_hp"];player.position=Vector3(0,0.1,6)
 
-func _update_player(delta: float) -> void:
-    if player == null:
-        return
-    var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-    var direction := Vector3(input.x, 0, input.y)
-    if direction.length_squared() > 0.01:
-        direction = direction.normalized()
-        player.position += direction * PLAYER_SPEED * delta
-        player.position.x = clampf(player.position.x, -ARENA_SIZE * 0.45, ARENA_SIZE * 0.45)
-        player.position.z = clampf(player.position.z, -ARENA_SIZE * 0.45, ARENA_SIZE * 0.45)
-        player.look_at(player.position + direction, Vector3.UP)
+func _clear_combat()->void:
+    for e in enemies:
+        if is_instance_valid(e):e.queue_free()
+    enemies.clear()
+    if boss and is_instance_valid(boss):boss.queue_free()
+    boss=null
+    for p in shots:
+        if is_instance_valid(p):p.queue_free()
+    shots.clear()
 
-    if Input.is_action_pressed("attack") and attack_cooldown <= 0.0:
-        _attack()
-        attack_cooldown = 0.32
+func _story()->void:
+    var line=story.next_line();hud.set_mode("HISTÓRIA • "+str(line["character"])+": "+str(line["text"]))
+    if int(state.data["story"]["scene"])>=story.current_chapter()["lines"].size():state.set_story_flag("tutorial_complete",true);quests.start("hunt_01")
 
-    camera.position = player.position + Vector3(0, 15, 18)
-    camera.look_at(player.position + Vector3(0, 0.8, 0), Vector3.UP)
-    var stats := hud.get_node_or_null("Stats") as Label
-    if stats:
-        stats.text = "HP %d/100   LV %d   XP %d   Monsters %d" % [int(hp), level, xp, enemies.size()]
+func _wardrobe()->void:
+    var unlocked:Array=state.data["wardrobe"]["unlocked"]
+    var next=content.STYLES[unlocked.size()%content.STYLES.size()]["id"]
+    if next not in unlocked:unlocked.append(next);state.data["wardrobe"]["style"]=next;_set_player()
+    hud.set_mode("ARMÁRIO • %d/%d ESTILOS" % [unlocked.size(),content.STYLES.size()])
 
-func _update_enemies(delta: float) -> void:
-    if player == null:
-        return
-    for enemy in enemies:
-        if not is_instance_valid(enemy):
-            continue
-        var distance := enemy.position.distance_to(player.position)
-        if distance > 2.4 and distance < 20.0:
-            var direction := player.position - enemy.position
-            direction.y = 0
-            if direction.length_squared() > 0.01:
-                enemy.position += direction.normalized() * delta * 1.25
-        elif distance <= 2.4:
-            hp = maxf(0.0, hp - delta * 4.0)
-            if hp <= 0.0:
-                hp = 100.0
-                player.position = Vector3(0, 1, 4)
+func _core(kind:String)->float:
+    var total:=0.0
+    for id in state.data["cores"]["equipped"]:
+        var c=content.CORES.get(str(id),{})
+        if c.get("type","")==kind:total+=float(c.get("value",0.0))
+    return total
 
-func _attack() -> void:
-    for enemy in enemies.duplicate():
-        if is_instance_valid(enemy) and enemy.position.distance_to(player.position) < 3.8:
-            enemy.queue_free()
-            enemies.erase(enemy)
-            xp += 25
-            if xp >= level * 100:
-                xp -= level * 100
-                level += 1
+func _process(delta:float)->void:
+    clock=fmod(clock+delta,600.0);state.data["world"]["day_clock"]=clock
+    state.increment_stat("play_seconds",delta)
+    var h=state.get_hunter();h["energy"]=minf(float(h["max_energy"]),float(h["energy"])+delta*4.5)
+    var v=Input.get_vector("move_left","move_right","move_forward","move_back")
+    if v.length_squared()>0.001:
+        v=v.normalized();player.position+=Vector3(v.x,0,v.y)*6.2*delta
+        player.position.x=clampf(player.position.x,-25,25);player.position.z=clampf(player.position.z,-25,25)
+    camera.position=player.position+Vector3(0,14,17);camera.look_at(player.position+Vector3(0,1,0),Vector3.UP)
+    for i in range(shots.size()-1,-1,-1):
+        var p=shots[i]
+        if not is_instance_valid(p):shots.remove_at(i);continue
+        p.position+=Vector3(p.get_meta("v"))*delta
+        if p.position.distance_to(player.position)<0.9:take_enemy_damage(float(p.get_meta("d")));p.queue_free();shots.remove_at(i)
+    if world.sun:
+        var wave=sin(clock/600.0*TAU)*0.5+0.5
+        world.sun.rotation_degrees.x=lerpf(-66,-12,wave);world.sun.light_energy=lerpf(0.35,1.25,wave)
 
-func _spawn_portal(pos: Vector3) -> void:
-    var portal := MeshInstance3D.new()
-    var torus := TorusMesh.new()
-    torus.inner_radius = 1.6
-    torus.outer_radius = 2.0
-    portal.mesh = torus
-    portal.position = pos
-    portal.rotation_degrees.x = 90
-    portal.material_override = _material(Color(0.2, 0.65, 1.0))
-    add_child(portal)
-
-func _spawn_prop(pos: Vector3) -> void:
-    var prop := MeshInstance3D.new()
-    var mesh := CylinderMesh.new()
-    mesh.top_radius = 0.7
-    mesh.bottom_radius = 1.0
-    mesh.height = 2.0
-    prop.mesh = mesh
-    prop.position = pos + Vector3(0, 1, 0)
-    prop.material_override = _material(Color(0.28, 0.34, 0.4))
-    add_child(prop)
-
-func _actor_mesh(color: Color, pos: Vector3) -> MeshInstance3D:
-    var actor := MeshInstance3D.new()
-    var mesh := CapsuleMesh.new()
-    mesh.radius = 0.55
-    mesh.height = 1.8
-    actor.mesh = mesh
-    actor.position = pos
-    actor.material_override = _material(color)
-    add_child(actor)
-    return actor
-
-func _material(color: Color) -> StandardMaterial3D:
-    var material := StandardMaterial3D.new()
-    material.albedo_color = color
-    material.roughness = 0.72
-    return material
-
-func _update_day_night() -> void:
-    var sun := get_node_or_null("Sun") as DirectionalLight3D
-    if sun:
-        var phase := day_clock / 600.0
-        var cycle := sin(phase * TAU) * 0.5 + 0.5
-        sun.rotation_degrees.x = lerpf(-35.0, -8.0, cycle)
-        sun.light_energy = lerpf(0.35, 1.25, cycle)
-
-func _save_offline_state() -> void:
-    var state := {"hp": hp, "level": level, "xp": xp}
-    var file := FileAccess.open("user://offline_save.json", FileAccess.WRITE)
-    if file:
-        file.store_string(JSON.stringify(state))
-
-func _load_offline_state() -> void:
-    if not FileAccess.file_exists("user://offline_save.json"):
-        return
-    var file := FileAccess.open("user://offline_save.json", FileAccess.READ)
-    if file == null:
-        return
-    var parsed = JSON.parse_string(file.get_as_text())
-    if parsed is Dictionary:
-        hp = float(parsed.get("hp", 100.0))
-        level = int(parsed.get("level", 1))
-        xp = int(parsed.get("xp", 0))
+func _notification(what:int)->void:
+    if what==NOTIFICATION_WM_CLOSE_REQUEST:save.force_save_and_flush();get_tree().quit()
