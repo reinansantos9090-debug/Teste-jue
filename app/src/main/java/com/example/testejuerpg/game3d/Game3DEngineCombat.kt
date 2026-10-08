@@ -58,36 +58,22 @@ internal fun Game3DEngine.spawnEnemy(elite: Boolean = false) {
         spawnEnemyOfKind(choices[random.nextInt(choices.size)], elite)
     }
 internal fun Game3DEngine.spawnEnemyOfKind(kind: EnemyKind, elite: Boolean = false) {
-        if (enemies.count { !it.dead } >= performanceGovernor.allowedEnemies()) return
-        var sx = 0f
-        var sz = 0f
-        var placed = false
-        repeat(8) {
-            val angle = random.nextFloat() * 6.283f
-            val distance = 8f + random.nextFloat() * 8f
-            val tx = cos(angle) * distance
-            val tz = sin(angle) * distance
-            if (mapRuntime.canSpawn(tx, tz, kind.radius)) {
-                sx = tx
-                sz = tz
-                placed = true
-                return@repeat
-            }
-        }
-        if (!placed) return
-        val pos = V3(
-            sx,
-            if (kind == EnemyKind.SCRAP_GOLEM || kind == EnemyKind.OVERLOAD_TITAN) 1.0f else 0.65f,
-            sz
-        )
-        enemies += EnemyEntity(
-            nextEnemyId++,
-            kind,
-            pos,
-            kind.hp * if (elite) 1.35f else 1f,
-            elite = elite
-        )
-    }
+    if (enemies.count { !it.dead } >= performanceGovernor.allowedEnemies()) return
+    val spawn = mapRuntime.findSpawn(random, kind.radius) ?: return
+    val pos = V3(
+        spawn.first,
+        if (kind == EnemyKind.SCRAP_GOLEM || kind == EnemyKind.OVERLOAD_TITAN) 1.0f else 0.65f,
+        spawn.second
+    )
+    enemies += EnemyEntity(
+        nextEnemyId++,
+        kind,
+        pos,
+        kind.hp * if (elite) 1.35f else 1f,
+        elite = elite
+    )
+}
+
 internal fun Game3DEngine.spawnBoss() {
         bossSpawned = true
         bossActive = true
