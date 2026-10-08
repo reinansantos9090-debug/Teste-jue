@@ -681,6 +681,7 @@ class Game3DEngine(private val context: Context) {
                 EnemyKind.PHASE_MOTH
             )
             else -> EnemyKind.entries.filter { it != EnemyKind.OVERLOAD_TITAN }
+        }
         spawnEnemyOfKind(choices[random.nextInt(choices.size)], elite)
     }
 
