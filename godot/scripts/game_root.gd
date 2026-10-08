@@ -564,7 +564,7 @@ func _process(delta:float)->void:
     if damage_buff_time<=0.0:damage_buff=0.0
     events.tick(delta)
     director.tick(delta)
-    state.increment_stat("play_seconds",delta)
+    state.data["statistics"]["play_seconds"]=float(state.data["statistics"].get("play_seconds",0.0))+delta
 
     var h:=state.get_hunter()
     h["energy"]=minf(float(h["max_energy"]),float(h["energy"])+delta*4.5)
