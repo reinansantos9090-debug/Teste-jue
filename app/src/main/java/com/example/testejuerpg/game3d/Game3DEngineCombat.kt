@@ -159,71 +159,174 @@ fun Game3DEngine.setMove(x: Float, y: Float) {
         moveY = y
     }
 @Synchronized fun Game3DEngine.primaryAction() {
-        if (scene != SceneMode.HUNT || isDefeated || primaryTimer > 0f) return
-        val weapon = WEAPONS[weaponIndex]
-        val weaponId = "weapon_" + weaponIndex
-        primaryTimer = weapon.cooldown * hunterDirector.cooldownMultiplier(weaponId) / hunterDirector.attackSpeedMultiplier(weaponId)
-        val target = nearestEnemy(weapon.mainRange) ?: return
-
-        val damageBonus = hunterDirector.damageMultiplier(weaponId) - 1f
-        val damage = OfflineCombatRules.playerDamage(
-            weapon.mainDamage,
-            level,
-            damageBonus,
-            hunterDirector.criticalChance(weaponId),
-            random.nextFloat()
-        )
-        if (weapon.archetype == 0 || weapon.archetype == 3) {
-            meleeAttack(target, damage, if (weapon.archetype == 3) 2.8f else 2.4f)
-        } else {
-            fireProjectile(target.pos, damage, 0.9f + weapon.mainRange * 0.03f)
+    if (scene != SceneMode.HUNT || isDefeated || primaryTimer > 0f) return
+    val weapon = WEAPONS[weaponIndex]
+    val weaponId = weapon.id
+    primaryTimer = weapon.cooldown * hunterDirector.cooldownMultiplier(weaponId) /
+        hunterDirector.attackSpeedMultiplier(weaponId)
+    val target = nearestEnemy(weapon.mainRange) ?: return
+    val damage = OfflineCombatRules.playerDamage(
+        weapon.mainDamage,
+        level,
+        hunterDirector.damageMultiplier(weaponId) - 1f,
+        hunterDirector.criticalChance(weaponId),
+        random.nextFloat()
+    )
+    when (weaponId) {
+        "volt_blades" -> meleeAttack(target, damage, 2.6f)
+        "toxic_bow" -> {
+            target.poison = 5.5f
+            fireProjectile(target.pos, damage * 1.08f, 1.30f)
         }
-    }
-@Synchronized fun Game3DEngine.useSkill(index: Int) {
-        if (scene != SceneMode.HUNT || isDefeated || index !in 0..2 || skillTimers[index] > 0f) return
-        when (index) {
-            0 -> skill1()
-            1 -> skill2()
-            2 -> skill3()
+        "pulsar_cannon" -> {
+            fireProjectile(target.pos, damage, 1.10f)
+            areaAttack(1.25f, damage * 0.38f)
         }
-    }
-internal fun Game3DEngine.skill1() {
-        skillTimers[0] = (if (WEAPONS[weaponIndex].archetype == 1) 4.0f else 3.0f) * hunterDirector.cooldownMultiplier("weapon_" + weaponIndex)
-        if (WEAPONS[weaponIndex].archetype == 1) {
-            repeat(3) {
-                val t = nearestEnemy(11f)
-                if (t != null) fireProjectile(t.pos, 46f * hunterDirector.damageMultiplier("weapon_" + weaponIndex), 1.15f)
+        "scrap_hammer" -> meleeAttack(target, damage * 1.12f, 3.05f)
+        "prism_spear" -> {
+            meleeAttack(target, damage * 1.18f, 2.2f)
+            dashToward(target, 1.6f)
+        }
+        "echo_chakrams" -> {
+            fireProjectile(target.pos, damage * 0.86f, 1.35f)
+            fireProjectile(target.pos, damage * 0.62f, 1.10f)
+        }
+        "nova_gauntlets" -> {
+            meleeAttack(target, damage * 0.82f, 2.0f)
+            if (!target.dead) meleeAttack(target, damage * 0.48f, 1.8f)
+        }
+        "rift_mortar" -> {
+            fireProjectile(target.pos, damage * 1.15f, 0.88f)
+            areaAttack(2.0f, damage * 0.44f)
+        }
+        "arc_whip" -> {
+            areaAttack(3.7f, damage)
+            if (!target.dead) target.pos.x += (player.x - target.pos.x) * 0.16f
+        }
+        "frost_rail" -> fireProjectile(target.pos, damage * 1.25f, 1.55f)
+        "solar_lance" -> fireProjectile(target.pos, damage * 1.12f, 1.25f)
+        "grav_hammer" -> meleeAttack(target, damage * 1.24f, 3.15f)
+        else -> {
+            if (weapon.archetype == 0 || weapon.archetype == 3) {
+                meleeAttack(target, damage, if (weapon.archetype == 3) 2.8f else 2.4f)
+            } else {
+                fireProjectile(target.pos, damage, 0.9f + weapon.mainRange * 0.03f)
             }
-        } else {
+        }
+    }
+}
+
+internal fun Game3DEngine.skill1() {
+    skillTimers[0] = WEAPONS[weaponIndex].cooldown * 7.0f *
+        hunterDirector.cooldownMultiplier(WEAPONS[weaponIndex].id)
+    val weapon = WEAPONS[weaponIndex]
+    val target = nearestEnemy(max(weapon.mainRange, 9f))
+    when (weapon.id) {
+        "volt_blades" -> dash()
+        "toxic_bow" -> repeat(3) { target?.let { fireProjectile(it.pos, 36f + level * 1.2f, 1.45f) } }
+        "pulsar_cannon" -> repeat(3) { target?.let { fireProjectile(it.pos, 31f + level, 1.05f + it.hashCode() * 0f) } }
+        "scrap_hammer" -> target?.let { dashToward(it, 2.8f); areaAttack(2.7f, 82f + level * 2f) }
+        "prism_spear" -> target?.let { dashToward(it, 3.4f); meleeAttack(it, 76f + level * 2.2f, 2.1f) }
+        "echo_chakrams" -> target?.let { fireProjectile(it.pos, 54f + level * 1.5f, 1.35f); fireProjectile(it.pos, 42f + level, 0.95f) }
+        "nova_gauntlets" -> repeat(4) { target?.let { meleeAttack(it, 26f + level * 0.8f, 1.7f) } }
+        "rift_mortar" -> repeat(4) { target?.let { fireProjectile(it.pos, 48f + level * 1.6f, 0.82f + it.radius * 0.02f) } }
+        "arc_whip" -> {
+            areaAttack(4.8f, 70f + level * 1.6f)
+            target?.let { it.hp += 0f }
+        }
+        "frost_rail" -> target?.let { fireProjectile(it.pos, 110f + level * 2f, 1.75f) }
+        "solar_lance" -> target?.let {
+            fireProjectile(it.pos, 92f + level * 2.2f, 1.50f)
+            fireProjectile(it.pos, 58f + level, 1.10f)
+        }
+        "grav_hammer" -> {
             dash()
+            areaAttack(4.2f, 118f + level * 2.5f)
         }
+        else -> if (weapon.archetype == 1) {
+            repeat(3) { target?.let { fireProjectile(it.pos, 46f * hunterDirector.damageMultiplier("weapon_" + weaponIndex), 1.15f) } }
+        } else dash()
     }
+}
+
 internal fun Game3DEngine.skill2() {
-        skillTimers[1] = 6.0f * hunterDirector.cooldownMultiplier("weapon_" + weaponIndex)
-        val radius = when (WEAPONS[weaponIndex].archetype) {
-            0 -> 3.3f
-            1 -> 2.8f
-            2 -> 4.3f
-            3 -> 3.4f
-            else -> 3.7f
+    skillTimers[1] = 6.0f * hunterDirector.cooldownMultiplier("weapon_" + weaponIndex)
+    val weapon = WEAPONS[weaponIndex]
+    when (weapon.id) {
+        "volt_blades" -> areaAttack(3.5f, 88f + level * 2.2f)
+        "toxic_bow" -> {
+            dash()
+            areaAttack(2.2f, 64f + level * 1.6f)
         }
-        val damage = when (WEAPONS[weaponIndex].archetype) {
-            0 -> 64f
-            1 -> 58f
-            2 -> 72f
-            3 -> 86f
-            else -> 62f
+        "pulsar_cannon" -> areaAttack(4.8f, 96f + level * 2.6f)
+        "scrap_hammer" -> areaAttack(4.1f, 118f + level * 3.0f)
+        "prism_spear" -> areaAttack(3.0f, 102f + level * 2.8f)
+        "echo_chakrams" -> {
+            dash()
+            areaAttack(2.6f, 72f + level * 1.8f)
         }
-        if (WEAPONS[weaponIndex].archetype == 1) dash()
-        else areaAttack(radius, damage * hunterDirector.damageMultiplier("weapon_" + weaponIndex))
+        "nova_gauntlets" -> areaAttack(3.1f, 106f + level * 2.5f)
+        "rift_mortar" -> areaAttack(5.4f, 136f + level * 3.2f)
+        "arc_whip" -> areaAttack(4.6f, 84f + level * 2.0f)
+        "frost_rail" -> {
+            val target = nearestEnemy(13f)
+            target?.let { fireProjectile(it.pos, 138f + level * 3.5f, 1.65f) }
+        }
+        "solar_lance" -> areaAttack(4.0f, 124f + level * 3.0f)
+        "grav_hammer" -> areaAttack(5.2f, 154f + level * 3.8f)
+        else -> {
+            val radius = when (weapon.archetype) {
+                0 -> 3.3f
+                1 -> 2.8f
+                2 -> 4.3f
+                3 -> 3.4f
+                else -> 3.7f
+            }
+            val damage = when (weapon.archetype) {
+                0 -> 64f
+                1 -> 58f
+                2 -> 72f
+                3 -> 86f
+                else -> 62f
+            }
+            if (weapon.archetype == 1) dash()
+            else areaAttack(radius, damage * hunterDirector.damageMultiplier("weapon_" + weaponIndex))
+        }
     }
+}
+
 internal fun Game3DEngine.skill3() {
-        skillTimers[2] = 12.0f * hunterDirector.cooldownMultiplier("weapon_" + weaponIndex)
-        val healFactor = if (WEAPONS[weaponIndex].archetype == 4) 0.48f else 0.36f
-        hp = min(maxHp, hp + maxHp * healFactor * hunterDirector.healingMultiplier("weapon_" + weaponIndex))
-        spawnBurst(player, 0.65f, floatArrayOf(0.4f, 1f, 0.7f))
-        vibrate(34)
+    skillTimers[2] = when (WEAPONS[weaponIndex].id) {
+        "frost_rail" -> 10.0f
+        "grav_hammer" -> 14.0f
+        "nova_gauntlets" -> 9.0f
+        else -> 12.0f
+    } * hunterDirector.cooldownMultiplier("weapon_" + weaponIndex)
+    val weapon = WEAPONS[weaponIndex]
+    val factor = when (weapon.id) {
+        "volt_blades" -> 0.34f
+        "toxic_bow" -> 0.42f
+        "pulsar_cannon" -> 0.30f
+        "scrap_hammer" -> 0.48f
+        "prism_spear" -> 0.36f
+        "echo_chakrams" -> 0.38f
+        "nova_gauntlets" -> 0.28f
+        "rift_mortar" -> 0.44f
+        "arc_whip" -> 0.33f
+        "frost_rail" -> 0.27f
+        "solar_lance" -> 0.41f
+        "grav_hammer" -> 0.52f
+        else -> if (weapon.archetype == 4) 0.48f else 0.36f
     }
+    hp = min(maxHp, hp + maxHp * factor * hunterDirector.healingMultiplier("weapon_" + weaponIndex))
+    if (weapon.id == "toxic_bow") {
+        enemies.forEach { it.poison = 0f }
+    }
+    if (weapon.id == "scrap_hammer" || weapon.id == "grav_hammer") screenShake = 0.32f
+    spawnBurst(player, 0.50f + factor * 0.35f, floatArrayOf(0.4f, 1f, 0.7f))
+    vibrate(34)
+}
+
 internal fun Game3DEngine.dash() {
         val len = sqrt(moveX * moveX + moveY * moveY)
         val dx = if (len > 0.1f) moveX / len else 0f
