@@ -184,6 +184,13 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Run Android unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x ./gradlew
+          ./gradlew :app:testDebugUnitTest --stacktrace
+
       - name: Build Android host with Gradle wrapper
         shell: bash
         run: |

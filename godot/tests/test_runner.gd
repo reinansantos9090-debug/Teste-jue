@@ -7,6 +7,12 @@ const CombatScript=preload("res://scripts/gameplay/combat_service.gd")
 const LootScript=preload("res://scripts/gameplay/loot_service.gd")
 const ContentScript=preload("res://scripts/core/content_database.gd")
 const SaveScript=preload("res://scripts/core/save_service.gd")
+const GameRootScript=preload("res://scripts/game_root.gd")
+const EnemyScript=preload("res://scripts/gameplay/enemy_agent.gd")
+const BossScript=preload("res://scripts/gameplay/boss_agent.gd")
+const MapScript=preload("res://scripts/world/map_service.gd")
+const WorldScript=preload("res://scripts/world/world_service.gd")
+const SkillTreeScript=preload("res://scripts/gameplay/skill_tree_service.gd")
 
 var failures:Array[String]=[]
 
