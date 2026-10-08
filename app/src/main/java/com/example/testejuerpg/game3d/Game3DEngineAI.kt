@@ -575,9 +575,11 @@ internal fun Game3DEngine.executeBossPattern(boss: EnemyEntity, profile: Offline
                 repeat(4) { index -> spawnBossProjectileSpread(boss, damage * 0.86f, index * (Math.PI.toFloat() / 2f)) }
             }
             "beam" -> {
-                val target = nearestEnemy(0f)
-                spawnEnemyAreaTelegraph(boss.pos, 3.8f + phase * 0.8f, damage * 0.75f)
-                takeDamage(0f)
+                spawnEnemyAreaTelegraph(
+                    boss.pos,
+                    3.8f + phase * 0.8f,
+                    damage * 0.75f
+                )
             }
             "rain" -> {
                 repeat(if (phase == 3) 8 else 5) { index ->
