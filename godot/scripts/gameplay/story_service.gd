@@ -76,6 +76,36 @@ const CHAPTERS := [
         ["Manny","Talvez seja a chave para o próximo capítulo."],
         ["Luna","Salve seu progresso, prepare seu equipamento e atravesse quando estiver pronto."],
         ["Jax","Aetheria ainda tem ecos para revelar."]
+    ]},
+    {"title":"A Cidade Suspensa","lines":[
+        ["Luna","As Ruínas do Céu escondem uma cidade que nunca tocou o solo."],
+        ["Jax","Os registros mostram caçadores usando os mesmos corredores há muitas gerações."],
+        ["Manny","O problema é que os corredores estão se rearranjando."],
+        ["Luna","Cada vitória estabiliza uma parte do mapa e libera um novo caminho."],
+        ["Jax","Encontramos uma gravação apontando para o núcleo central."],
+        ["Manny","Leve suas armas de maior alcance. O céu tem inimigos que não pousam."],
+        ["Luna","Quando voltarmos ao terraço, o arquivo deverá registrar esta descoberta."],
+        ["Jax","Aetheria está ficando maior a cada resposta."]
+    ]},
+    {"title":"O Núcleo de Sucata","lines":[
+        ["Manny","O núcleo encontrado no cânion ainda está funcionando."],
+        ["Jax","Ele converte sucata em energia, mas também atrai criaturas."],
+        ["Luna","Precisamos desmontá-lo sem perder a fonte de energia."],
+        ["Manny","Gadgets fabricados no terraço podem absorver parte do impacto."],
+        ["Jax","Use a oficina para preparar minas, drones e granadas."],
+        ["Luna","O núcleo pode se tornar uma ferramenta em vez de uma ameaça."],
+        ["Manny","Só precisamos sobreviver ao próximo surto."],
+        ["Jax","O surto começou."]
+    ]},
+    {"title":"O Silêncio do Vazio","lines":[
+        ["Luna","A última Fenda não produziu o ruído normal do Portal."],
+        ["Jax","Não há eco, não há energia residual e nenhum sinal de retorno."],
+        ["Manny","Mesmo assim, algo está atravessando para o nosso lado."],
+        ["Luna","O diário marca essa região como Além do Eco."],
+        ["Jax","As criaturas daqui não obedecem aos ciclos comuns de ataque."],
+        ["Manny","Precisaremos alternar mobilidade, barreira e controle."],
+        ["Luna","Não existe reforço chegando. Esta incursão é só nossa."],
+        ["Jax","Então termine o que começou."]
     ]}
 ]
 
