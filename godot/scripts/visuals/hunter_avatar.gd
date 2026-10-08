@@ -209,6 +209,31 @@ func _build_weapon_visual(id: String) -> void:
             for i in range(3):
                 var orb := _mesh_sphere(weapon_model, 0.12, Vector3(-0.27 + i * 0.27, 0.82, -0.12), accent_color, 10, 6)
                 orb.set_meta("orb_phase", i * TAU / 3.0)
+        "frost_repeater":
+            _mesh_box(weapon_model,Vector3(0.34,0.88,0.28),Vector3(0,0.64,-0.04),Color("#46658f"),0.06)
+            _mesh_cylinder(weapon_model,0.14,0.18,0.72,Vector3(0,1.15,-0.10),Color("#a9f3ff"),10,6)
+            _mesh_sphere(weapon_model,0.13,Vector3(0,1.53,-0.10),Color("#efffff"),10,6)
+        "ember_scythes":
+            _mesh_torus(weapon_model,0.48,0.08,Vector3(-0.35,0.88,0),Color("#ff7d46"))
+            _mesh_torus(weapon_model,0.48,0.08,Vector3(0.35,0.88,0),Color("#ffd15c"))
+            _mesh_box(weapon_model,Vector3(0.10,1.40,0.10),Vector3(-0.35,0.70,0),Color("#3a4050"),0.03)
+            _mesh_box(weapon_model,Vector3(0.10,1.40,0.10),Vector3(0.35,0.70,0),Color("#3a4050"),0.03)
+        "storm_bow":
+            _mesh_torus(weapon_model,0.58,0.085,Vector3(0,0.70,0),Color("#74dfff"))
+            _mesh_box(weapon_model,Vector3(0.06,1.42,0.06),Vector3(0,0.70,-0.04),Color("#dffbff"),0.02)
+            _mesh_sphere(weapon_model,0.08,Vector3(0,1.22,-0.08),Color("#8cf2ff"),10,6)
+        "gravity_matrix":
+            _mesh_torus(weapon_model,0.42,0.07,Vector3(0,0.90,0),Color("#9c7bff"))
+            _mesh_sphere(weapon_model,0.18,Vector3(0,0.90,0),Color("#f4ecff"),10,6)
+            _mesh_box(weapon_model,Vector3(0.28,0.90,0.28),Vector3(0,0.38,0),Color("#3d455c"),0.05)
+        "venom_nova":
+            _mesh_box(weapon_model,Vector3(0.11,1.52,0.11),Vector3(0,0.78,0),Color("#69ef8e"),0.03)
+            _mesh_box(weapon_model,Vector3(0.46,0.12,0.16),Vector3(0,1.48,0),Color("#d8ffab"),0.03)
+            _mesh_sphere(weapon_model,0.10,Vector3(0,0.20,-0.10),Color("#76e9a1"),10,6)
+        "prism_staff":
+            _mesh_box(weapon_model,Vector3(0.12,1.62,0.12),Vector3(0,0.80,0),Color("#b8c6e5"),0.03)
+            _mesh_sphere(weapon_model,0.24,Vector3(0,1.68,0),Color("#93efff"),10,6)
+            _mesh_sphere(weapon_model,0.11,Vector3(0,1.68,0),Color("#ffffff"),10,6)
         _:
             _mesh_box(weapon_model, Vector3(0.16, 1.40, 0.16), Vector3(0, 0.70, 0), accent_color, 0.03)
     weapon_changed.emit(weapon_id)
