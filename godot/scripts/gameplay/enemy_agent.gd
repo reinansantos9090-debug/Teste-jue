@@ -31,6 +31,7 @@ func configure(id:String,target_node:Node3D,database:Node,scale:=1.0)->void:
     target=target_node
     difficulty=maxf(0.5,scale)
     behavior=str(stats.get("behavior","melee"))
+    add_to_group("enemy_agents")
     max_hp=float(stats.get("hp",50.0))*difficulty
     hp=max_hp
     base_speed=float(stats.get("speed",2.0))
