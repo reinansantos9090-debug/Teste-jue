@@ -1,18 +1,26 @@
 extends RefCounted
 
 const ToonShader=preload("res://shaders/aether_toon.gdshader")
+static var _material_cache:Dictionary={}
 ## Procedural original 3D asset factory.
 ## Rounded meshes + simple materials keep draw calls and geometry modest for mobile.
 
 static func mat(color:Color, metallic:=0.0, roughness:=0.72, emission:=Color.TRANSPARENT) -> ShaderMaterial:
+    var glow:=emission if emission.a>0.0 else Color(0,0,0,1)
+    var key: String="%s|%s|%s|%s|%s|%s|%s"%[
+        color.r,color.g,color.b,
+        glow.r,glow.g,glow.b,metallic
+    ]
+    if _material_cache.has(key):
+        return _material_cache[key]
     var m:=ShaderMaterial.new()
     m.shader=ToonShader
     m.set_shader_parameter("base_color",Color(color.r,color.g,color.b,1.0))
     m.set_shader_parameter("rim_color",color.lightened(0.14))
     m.set_shader_parameter("rim_strength",0.20+clampf(metallic*0.08,0.0,0.10))
-    var glow:=emission if emission.a>0.0 else Color(0,0,0,1)
     m.set_shader_parameter("emission_color",glow)
     m.set_shader_parameter("emission_strength",1.8 if emission.a>0.0 else 0.0)
+    _material_cache[key]=m
     return m
 
 static func box(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
@@ -22,6 +30,7 @@ static func box(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> Me
     n.mesh = mesh
     n.position = pos
     n.material_override = mat(color)
+    n.visibility_range_end=55.0
     parent.add_child(n)
     return n
 
