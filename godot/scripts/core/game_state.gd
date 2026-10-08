@@ -4,7 +4,7 @@ signal inventory_changed
 signal quest_changed
 signal story_changed
 
-const SCHEMA := 7
+const SCHEMA := 8
 var data: Dictionary = {}
 
 func _ready() -> void:
@@ -14,7 +14,7 @@ func reset() -> void:
     data = {
         "schema": SCHEMA,
         "hunter": {"name":"Aether Hunter","level":1,"xp":0,"xp_to_next":120,"hp":120,"max_hp":120,"energy":100.0,"max_energy":100.0,"gold":0,"chaos_energy":0,"rank":0},
-        "loadout": {"weapon":"volt_blades","ability_1":"shock_dash","ability_2":"aether_burst","ability_3":"nanodrone","core_slots":["damage","cooldown","dodge"]},
+        "loadout": {"weapon":"volt_blades","ability_1":"shock_dash","ability_2":"aether_burst","ability_3":"nanodrone","core_slots":["damage","cooldown","dodge"],"ability_1":"volt_dash","ability_2":"arc_burst","ability_3":"nanodrone"},
         "inventory": {"aether_core":8,"slime_gel":12,"plasma_fiber":4,"scrap_plate":5,"power_cell":3,"oak_branch":8,"stone":6,"herb":10},
         "quests": {"active":["story_01"],"progress":{},"completed":[]},
         "story": {"chapter":1,"scene":0,"flags":{"tutorial_complete":false,"rooftop_unlocked":true},"journal":[]},
@@ -22,7 +22,9 @@ func reset() -> void:
         "wardrobe": {"style":"starter_hunter","unlocked":["starter_hunter"],"rides":[],"emotes":["wave"]},
         "cores": {"owned":["damage_1","cooldown_1","dodge_1"],"equipped":["damage_1","cooldown_1","dodge_1"]},
         "events": {"research_destroy":0,"transformation_unlocked":false},
-        "statistics": {"kills":0,"bosses":0,"deaths":0,"damage_dealt":0.0,"distance":0.0,"play_seconds":0.0}
+        "statistics": {"kills":0,"bosses":0,"deaths":0,"damage_dealt":0.0,"distance":0.0,"play_seconds":0.0},
+        "progression": {"skill_points":0,"skills":[]},
+        "loot": {"last":[],"total_gold":0,"rarity_counts":{}}
     }
     state_changed.emit()
 
@@ -72,6 +74,7 @@ func add_xp(amount: int) -> int:
         hunter["max_hp"] = int(hunter["max_hp"]) + 12
         hunter["hp"] = hunter["max_hp"]
         hunter["max_energy"] = float(hunter["max_energy"]) + 4.0
+        data["progression"]["skill_points"] = int(data["progression"].get("skill_points",0)) + 1
         gained += 1
     state_changed.emit()
     return gained
