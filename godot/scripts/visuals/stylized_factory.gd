@@ -1,16 +1,18 @@
 extends RefCounted
+
+const ToonShader=preload("res://shaders/aether_toon.gdshader")
 ## Procedural original 3D asset factory.
 ## Rounded meshes + simple materials keep draw calls and geometry modest for mobile.
 
-static func mat(color: Color, metallic := 0.0, roughness := 0.72, emission := Color.TRANSPARENT) -> StandardMaterial3D:
-    var m := StandardMaterial3D.new()
-    m.albedo_color = color
-    m.metallic = metallic
-    m.roughness = roughness
-    if emission.a > 0.0:
-        m.emission_enabled = true
-        m.emission = emission
-        m.emission_energy_multiplier = 1.8
+static func mat(color:Color, metallic:=0.0, roughness:=0.72, emission:=Color.TRANSPARENT) -> ShaderMaterial:
+    var m:=ShaderMaterial.new()
+    m.shader=ToonShader
+    m.set_shader_parameter("base_color",Color(color.r,color.g,color.b,1.0))
+    m.set_shader_parameter("rim_color",color.lightened(0.14))
+    m.set_shader_parameter("rim_strength",0.20+clampf(metallic*0.08,0.0,0.10))
+    var glow:=emission if emission.a>0.0 else Color(0,0,0,1)
+    m.set_shader_parameter("emission_color",glow)
+    m.set_shader_parameter("emission_strength",1.8 if emission.a>0.0 else 0.0)
     return m
 
 static func box(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
@@ -28,8 +30,8 @@ static func sphere(parent: Node3D, radius: float, pos: Vector3, color: Color) ->
     var mesh := SphereMesh.new()
     mesh.radius = radius
     mesh.height = radius * 2.0
-    mesh.radial_segments = 12
-    mesh.rings = 7
+    mesh.radial_segments = 10
+    mesh.rings = 6
     n.mesh = mesh
     n.position = pos
     n.material_override = mat(color)
