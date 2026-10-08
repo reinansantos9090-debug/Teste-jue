@@ -27,8 +27,15 @@ object OfflineBiomeCatalog {
         OfflineBiome("blue_void","Vazio Azul",1201,0.04f,0.08f,0.20f,0.22f,0.60f,1.00f,0.02f,0.04f,0.14f,0.20f,0.98f)
     )
     fun forIndex(index: Int): OfflineBiome = all[index.mod(all.size)]
-    fun forWorld(name: String): OfflineBiome {
-        val hash = name.fold(17) { acc, c -> acc * 31 + c.code }
-        return forIndex(kotlin.math.abs(hash))
+    fun forWorld(name: String): OfflineBiome = when (name) {
+        "Jardins do Prisma" -> all.first { it.id == "prism_garden" }
+        "Floresta Neon" -> all.first { it.id == "neon_forest" }
+        "Pântano de Plasma" -> all.first { it.id == "plasma_marsh" }
+        "Ruínas de Sucata" -> all.first { it.id == "scrap_ruins" }
+        "Cânion do Vórtice" -> all.first { it.id == "vortex_canyon" }
+        "Domo da Aurora" -> all.first { it.id == "aurora_dome" }
+        "Vale de Cristal" -> all.first { it.id == "crystal_vale" }
+        "Planície Magnética" -> all.first { it.id == "magnetic_plain" }
+        else -> all.first()
     }
 }
