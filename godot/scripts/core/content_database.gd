@@ -97,12 +97,12 @@ const BIOMES := {
 }
 
 const QUESTS := [
-    {"id":"story_01","title":"Recruta da Aetheria","description":"Conheça o núcleo de caçadores no terraço e abra o Portal.","type":"story","target":1,"xp":80,"next":"hunt_01"},
-    {"id":"hunt_01","title":"Infestação de Gelatina","description":"Elimine Slimes de Aether na Fronteira Esmeralda.","type":"kill","target":6,"monster":"aether_slime","xp":140,"next":"hunt_02"},
-    {"id":"hunt_02","title":"Perigo Veloz","description":"Cace Perseguidores Neon antes que alcancem o posto avançado.","type":"kill","target":5,"monster":"neon_stalker","xp":190,"next":"hunt_03"},
-    {"id":"hunt_03","title":"Sucata Viva","description":"Derrote Golems de Sucata Cósmica e recupere células.","type":"kill","target":3,"monster":"scrap_golem","xp":260,"next":"rift_01"},
-    {"id":"rift_01","title":"Primeira Fenda","description":"Conclua uma incursão de Fenda.","type":"rift","target":1,"xp":320,"next":"boss_01"},
-    {"id":"boss_01","title":"Titã de Sobrecarga","description":"Derrote o chefe do Domo da Fenda.","type":"boss","target":1,"xp":520,"next":"chapter_02"},
+    {"id":"story_01","title":"Recruta da Aetheria","description":"Conheça o núcleo de caçadores no terraço e abra o Portal.","type":"story","target":1,"xp":80,"rewards":{"aether_core":2},"next":"hunt_01"},
+    {"id":"hunt_01","title":"Infestação de Gelatina","description":"Elimine Slimes de Aether na Fronteira Esmeralda.","type":"kill","target":6,"monster":"aether_slime","xp":140,"rewards":{"slime_gel":6},"next":"hunt_02"},
+    {"id":"hunt_02","title":"Perigo Veloz","description":"Cace Perseguidores Neon antes que alcancem o posto avançado.","type":"kill","target":5,"monster":"neon_stalker","xp":190,"rewards":{"plasma_fiber":3},"next":"hunt_03"},
+    {"id":"hunt_03","title":"Sucata Viva","description":"Derrote Golems de Sucata Cósmica e recupere células.","type":"kill","target":3,"monster":"scrap_golem","xp":260,"rewards":{"power_cell":2,"scrap_plate":3},"next":"rift_01"},
+    {"id":"rift_01","title":"Primeira Fenda","description":"Conclua uma incursão de Fenda.","type":"rift","target":1,"xp":320,"rewards":{"gravity_shard":1},"next":"boss_01"},
+    {"id":"boss_01","title":"Titã de Sobrecarga","description":"Derrote o chefe do Domo da Fenda.","type":"boss","target":1,"boss":"overload_titan","xp":520,"rewards":{"aether_core":5,"pulse_grenade":1},"next":"chapter_02"},
     {"id":"chapter_02","title":"Ecos Cristalinos","description":"Complete uma expedição na Floresta Cristalina.","type":"map","target":1,"map":"crystal_forest","xp":340,"next":"chapter_03"},
     {"id":"chapter_03","title":"Cinzas do Poente","description":"Derrote 8 criaturas no Deserto do Poente.","type":"map_kill","target":8,"map":"sunset_desert","xp":420,"next":"chapter_04"},
     {"id":"chapter_04","title":"Máquinas Adormecidas","description":"Colete 5 placas em Cânions de Sucata.","type":"collect","target":5,"item":"scrap_plate","xp":460,"next":"chapter_05"},
