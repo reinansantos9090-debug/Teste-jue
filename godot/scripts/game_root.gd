@@ -230,7 +230,7 @@ func _run_operation(action_id:String)->void:
         "cores":
             hud.set_mode("NÚCLEOS • "+cores.summary())
         "skills":
-            var unlocked_skill:=skill_tree.unlock_next_available()
+            var unlocked_skill:String=skill_tree.unlock_next_available()
             hud.set_mode("ÁRVORE • "+unlocked_skill+" • "+skill_tree.summary())
             audio.level_up()
         "craft":
@@ -267,15 +267,15 @@ func _attack()->void:
     var target:=_nearest(float(weapon["range"])+1.8)
     if target:
         if player.has_method("play_attack"):player.play_attack()
-        var bonus:=_core("damage")+skill_tree.bonus("damage")+damage_buff
-        var crit:=_core("crit")+skill_tree.bonus("crit")
-        var amount:=combat.player_damage(weapon,int(state.get_hunter()["level"]),bonus,crit)
+        var bonus:float=_core("damage")+skill_tree.bonus("damage")+damage_buff
+        var crit:float=_core("crit")+skill_tree.bonus("crit")
+        var amount:float=combat.player_damage(weapon,int(state.get_hunter()["level"]),bonus,crit)
         combat.hit(target,amount)
         vfx.hit_burst(self,target.position+Vector3(0,1,0),Color("#ffe16a"))
         vfx.floating_number(self,target.position+Vector3(0,1.5,0),amount,false)
-    var speed_bonus:=_core("attack_speed")+skill_tree.bonus("attack_speed")
+    var speed_bonus:float=_core("attack_speed")+skill_tree.bonus("attack_speed")
     var cooldown_bonus:=clampf(_core("cooldown")+skill_tree.bonus("cooldown"),0.0,0.75)
-    var wait:=float(weapon["rate"])*(1.0-cooldown_bonus)/(1.0+speed_bonus)
+    var wait:float=float(weapon["rate"])*(1.0-cooldown_bonus)/(1.0+speed_bonus)
     get_tree().create_timer(maxf(0.08,wait)).timeout.connect(func():attack_ready=true)
 
 func _ability(i:int)->void:
@@ -285,7 +285,7 @@ func _ability(i:int)->void:
     if i>=ids.size():return
     var ability:Dictionary=content.ABILITIES.get(str(ids[i]),{})
     if ability.is_empty():return
-    var hunter:=state.get_hunter()
+    var hunter:Dictionary=state.get_hunter()
     if float(hunter["energy"])<float(ability["energy"]):return
 
     skills[i]=false
@@ -356,7 +356,7 @@ func _use_gadget()->void:
                 if is_instance_valid(e) and e.position.distance_to(origin)<=5.4:combat.hit(e,110.0)
             vfx.skill_burst(self,origin,Color("#ffbe66"))
         "healing_drone":
-            var h:=state.get_hunter()
+            var h:Dictionary=state.get_hunter()
             h["hp"]=minf(float(h["max_hp"]),float(h["hp"])+90.0+float(h["level"])*4.0)
             vfx.skill_burst(self,origin,Color("#63f2a4"))
         "aether_mine":
@@ -389,7 +389,7 @@ func _spawn_enemy(i:int,id:="")->void:
     var e:Node3D=enemy_scene.instantiate() if enemy_scene else EnemyScript.new()
     add_child(e)
     e.position=_spawn_position(i)
-    var scale:=maps.difficulty(str(portal_service.destination))
+    var scale:float=maps.difficulty(str(portal_service.destination))
     e.configure(kind,player,content,scale)
     var behavior:=str(content.MONSTERS.get(kind,{}).get("behavior","melee"))
     _attach_enemy_visual(e,behavior,i)
@@ -536,7 +536,7 @@ func _dodge()->void:
 
 func take_enemy_damage(d:float)->void:
     if invulnerability>0.0 or dead_timer>0.0:return
-    var h:=state.get_hunter()
+    var h:Dictionary=state.get_hunter()
     var dodge:=clampf(_core("dodge")+skill_tree.bonus("dodge"),0.0,0.70)
     if randf()<dodge:return
     h["hp"]=maxf(0.0,float(h["hp"])-d)
@@ -550,7 +550,7 @@ func take_enemy_damage(d:float)->void:
 
 func _respawn_player()->void:
     if not is_instance_valid(player):return
-    var h:=state.get_hunter()
+    var h:Dictionary=state.get_hunter()
     h["hp"]=h["max_hp"]
     player.position=Vector3(0,0.1,6)
     if player.has_method("respawn"):player.respawn()
@@ -567,7 +567,7 @@ func _clear_combat()->void:
     shots.clear()
 
 func _story()->void:
-    var line:=story.next_line()
+    var line:Dictionary=story.next_line()
     if cutscene and is_instance_valid(cutscene):
         cutscene.show_line(story.chapter_title(),str(line["character"]),str(line["text"]))
     hud.set_mode("HISTÓRIA • "+str(line["character"]))
@@ -575,7 +575,7 @@ func _story()->void:
 func _wardrobe()->void:
     if content.STYLES.is_empty():return
     var unlocked:Array=state.data["wardrobe"]["unlocked"]
-    var next_index:=unlocked.size()%content.STYLES.size()
+    var next_index:int=unlocked.size()%content.STYLES.size()
     var next_id:=str(content.STYLES[next_index]["id"])
     if next_id not in unlocked:
         unlocked.append(next_id)
@@ -604,7 +604,7 @@ func _process(delta:float)->void:
     director.tick(delta)
     state.data["statistics"]["play_seconds"]=float(state.data["statistics"].get("play_seconds",0.0))+delta
 
-    var h:=state.get_hunter()
+    var h:Dictionary=state.get_hunter()
     h["energy"]=minf(float(h["max_energy"]),float(h["energy"])+delta*4.5)
 
     var v:Vector2=hud.move_vector if hud and hud.move_vector.length_squared()>0.01 else Input.get_vector("move_left","move_right","move_forward","move_back")
