@@ -58,24 +58,181 @@ internal fun Game3DEngine.updateEnemies(dt: Float) {
             e.specialTimer = max(0f, e.specialTimer - dt)
 
             when (e.kind) {
-                EnemyKind.MAGNET_TURRET -> {
-                    if (e.attackTimer <= 0f && dist < 20f) {
-                        e.attackTimer = 2.20f
-                        spawnEnemyProjectile(e, 1.25f, 7.0f)
-                        spawnBurst(e.pos, 0.12f, floatArrayOf(1f,0.55f,0.30f))
+                EnemyKind.AETHER_SLIME -> {
+                    val hop = kotlin.math.sin((SystemClock.elapsedRealtime() * 0.006f) + e.id) * 0.35f
+                    if (dist > 2.4f + hop) {
+                        moveEnemyToward(e, dx, dz, dist, dt, 0.90f + if (e.elite) 0.14f else 0f)
+                    } else if (e.attackTimer <= 0f) {
+                        e.attackTimer = 1.25f
+                        takeDamage(e.kind.attack * (if (e.elite) 1.15f else 1f))
+                        spawnBurst(e.pos, 0.20f, floatArrayOf(0.25f, 0.95f, 0.70f))
+                    }
+                    if (e.specialTimer <= 0f && dist < 6.5f) {
+                        e.specialTimer = 4.8f
+                        spawnEnemyAreaTelegraph(e.pos, 2.0f, e.kind.attack * 0.70f)
                     }
                 }
-                EnemyKind.MOSS_MENDER -> {
+                EnemyKind.NEON_STALKER -> {
+                    if (e.specialTimer <= 0f && dist < 11f) {
+                        e.specialTimer = 3.4f
+                        val side = if (e.id % 2 == 0) 1f else -1f
+                        val inv = 1f / max(0.001f, dist)
+                        e.pos.x = player.x + dx * inv * 3.1f + (-dz * inv) * side * 2.0f
+                        e.pos.z = player.z + dz * inv * 3.1f + (dx * inv) * side * 2.0f
+                        spawnBurst(e.pos, 0.18f, floatArrayOf(1f, 0.18f, 0.62f))
+                    } else if (dist > 1.7f) {
+                        moveEnemyToward(e, dx, dz, dist, dt, 1.45f)
+                    } else if (e.attackTimer <= 0f) {
+                        e.attackTimer = 0.9f
+                        takeDamage(e.kind.attack * 1.15f)
+                    }
+                }
+                EnemyKind.SCRAP_GOLEM -> {
+                    if (dist > 3.0f) {
+                        moveEnemyToward(e, dx, dz, dist, dt, 0.58f)
+                    } else if (e.attackTimer <= 0f) {
+                        e.attackTimer = 2.1f
+                        takeDamage(e.kind.attack)
+                        spawnEnemyAreaTelegraph(e.pos, 2.8f, e.kind.attack * 0.55f)
+                        screenShake = 0.12f
+                    }
+                }
+                EnemyKind.PRISM_MOTH -> {
+                    val orbit = -dz * 0.72f + dx * 0.22f
+                    val orbitZ = dx * 0.72f + dz * 0.22f
+                    val inv = 1f / max(0.001f, dist)
+                    if (dist < 8f) {
+                        e.pos.x += orbit * inv * e.kind.speed * dt
+                        e.pos.z += orbitZ * inv * e.kind.speed * dt
+                    } else {
+                        moveEnemyToward(e, dx, dz, dist, dt, 0.82f)
+                    }
+                    if (e.attackTimer <= 0f && dist < 14f) {
+                        e.attackTimer = 2.0f
+                        spawnEnemyProjectile(e, 0.82f, 6.2f)
+                    }
+                }
+                EnemyKind.SCRAP_DRONE -> {
+                    val strafe = if (e.id % 2 == 0) 1f else -1f
+                    if (dist < 7f) {
+                        e.pos.x += (-dz) * strafe * 0.55f * dt
+                        e.pos.z += dx * strafe * 0.55f * dt
+                    } else if (dist > 12f) {
+                        moveEnemyToward(e, dx, dz, dist, dt, 0.92f)
+                    }
+                    if (e.attackTimer <= 0f && dist < 18f) {
+                        e.attackTimer = 1.65f
+                        spawnEnemyProjectile(e, 0.95f, 7.1f)
+                    }
+                }
+                EnemyKind.PLASMA_EEL -> {
+                    val wave = kotlin.math.sin(SystemClock.elapsedRealtime() * 0.008f + e.id) * 1.4f
+                    val steerX = dx - dz * 0.28f * wave
+                    val steerZ = dz + dx * 0.28f * wave
+                    if (dist > 2.1f) {
+                        moveEnemyToward(e, steerX, steerZ, max(0.001f, sqrt(steerX * steerX + steerZ * steerZ)), dt, 1.15f)
+                    } else if (e.attackTimer <= 0f) {
+                        e.attackTimer = 1.2f
+                        takeDamage(e.kind.attack)
+                    }
+                    if (e.specialTimer <= 0f && dist < 10f) {
+                        e.specialTimer = 3.6f
+                        spawnEnemyProjectile(e, 1.15f, 5.9f)
+                    }
+                }
+                EnemyKind.VOID_BEETLE -> {
+                    if (e.specialTimer <= 0f && dist < 12f) {
+                        e.specialTimer = 4.5f
+                        e.pos.x = player.x - dx * 0.48f
+                        e.pos.z = player.z - dz * 0.48f
+                        spawnBurst(e.pos, 0.22f, floatArrayOf(0.30f, 0.16f, 0.62f))
+                    } else if (dist > 1.9f) {
+                        moveEnemyToward(e, dx, dz, dist, dt, 0.98f)
+                    } else if (e.attackTimer <= 0f) {
+                        e.attackTimer = 1.0f
+                        takeDamage(e.kind.attack * 1.25f)
+                    }
+                }
+                EnemyKind.AURORA_WRAITH -> {
+                    if (e.specialTimer <= 0f) {
+                        e.specialTimer = 4.0f
+                        val angle = (SystemClock.elapsedRealtime() * 0.0013f) + e.id
+                        e.pos.x = player.x + cos(angle) * 5.2f
+                        e.pos.z = player.z + sin(angle) * 5.2f
+                        e.hp = min(e.kind.hp.toFloat(), e.hp + e.kind.hp * 0.12f)
+                        spawnBurst(e.pos, 0.24f, floatArrayOf(0.50f, 0.92f, 1f))
+                    }
+                    if (e.attackTimer <= 0f && dist < 13f) {
+                        e.attackTimer = 2.4f
+                        spawnEnemyProjectile(e, 1.05f, 5.0f)
+                    }
+                }
+                EnemyKind.MAGNET_HARE -> {
+                    if (e.specialTimer <= 0f) {
+                        e.specialTimer = 2.6f
+                        val angle = if (e.id % 2 == 0) 0.75f else -0.75f
+                        val nx = dx * cos(angle) - dz * sin(angle)
+                        val nz = dx * sin(angle) + dz * cos(angle)
+                        val inv = 1f / max(0.001f, dist)
+                        e.pos.x = player.x + nx * inv * 4.3f
+                        e.pos.z = player.z + nz * inv * 4.3f
+                    } else if (dist > 2.2f) {
+                        moveEnemyToward(e, dx, dz, dist, dt, 1.65f)
+                    } else if (e.attackTimer <= 0f) {
+                        e.attackTimer = 0.7f
+                        takeDamage(e.kind.attack)
+                    }
+                }
+                EnemyKind.CRYSTAL_BRUTE -> {
+                    if (e.specialTimer <= 0f && dist < 10f) {
+                        e.specialTimer = 5.2f
+                        moveEnemyToward(e, dx, dz, dist, dtSafe() * 0f + 0.0f, 3.0f)
+                        spawnEnemyAreaTelegraph(e.pos, 2.6f, e.kind.attack * 0.9f)
+                    } else if (dist > 2.3f) {
+                        moveEnemyToward(e, dx, dz, dist, dt, 0.65f)
+                    } else if (e.attackTimer <= 0f) {
+                        e.attackTimer = 2.0f
+                        takeDamage(e.kind.attack * 1.10f)
+                    }
+                }
+                EnemyKind.MEMORY_ECHO -> {
                     if (e.specialTimer <= 0f) {
                         e.specialTimer = 4.2f
-                        enemies.asSequence()
-                            .filter { it != e && !it.dead }
-                            .filter { it.pos.distanceSquared(e.pos) < 32f }
-                            .take(2)
-                            .forEach { ally -> ally.hp = min(ally.kind.hp * 1.45f, ally.hp + ally.kind.hp * 0.16f) }
-                        spawnBurst(e.pos, 0.18f, floatArrayOf(0.35f,1f,0.55f))
+                        spawnEnemyProjectile(e, 0.75f, 4.5f)
+                        spawnEnemyProjectile(e, 0.75f, 6.0f)
+                        spawnBurst(e.pos, 0.20f, floatArrayOf(0.75f, 0.60f, 1f))
+                    } else if (dist > 2.4f) {
+                        moveEnemyToward(e, dx, dz, dist, dt, 0.86f)
+                    } else if (e.attackTimer <= 0f) {
+                        e.attackTimer = 1.4f
+                        takeDamage(e.kind.attack)
                     }
-                    moveEnemyToward(e, dx, dz, dist, dt, 1.0f)
+                }
+                EnemyKind.PORTAL_LEECH -> {
+                    if (dist > 2.0f) {
+                        moveEnemyToward(e, dx, dz, dist, dt, 1.12f)
+                    } else if (e.attackTimer <= 0f) {
+                        e.attackTimer = 1.3f
+                        takeDamage(e.kind.attack)
+                        e.hp = min(e.kind.hp.toFloat(), e.hp + e.kind.hp * 0.10f)
+                        spawnBurst(e.pos, 0.17f, floatArrayOf(0.60f, 0.22f, 0.90f))
+                    }
+                    if (e.specialTimer <= 0f && dist < 8f) {
+                        e.specialTimer = 4.8f
+                        val stolen = min(hp * 0.06f, 10f)
+                        hp = max(1f, hp - stolen)
+                        e.hp = min(e.kind.hp.toFloat(), e.hp + stolen * 1.4f)
+                    }
+                }
+                EnemyKind.THORN_LING -> {
+                    if (dist > 6f) {
+                        moveEnemyToward(e, dx, dz, dist, dt, 0.72f)
+                    }
+                    if (e.attackTimer <= 0f && dist < 16f) {
+                        e.attackTimer = 2.25f
+                        spawnEnemyProjectile(e, 0.95f, 6.4f)
+                        spawnEnemyProjectile(e, 0.95f, 6.0f)
+                    }
                 }
                 EnemyKind.SAND_BOMBER -> {
                     if (dist < 3.2f && e.specialTimer <= 0f) {
@@ -108,6 +265,34 @@ internal fun Game3DEngine.updateEnemies(dt: Float) {
                         takeDamage(e.kind.attack * 1.15f)
                     }
                 }
+                EnemyKind.MOSS_MENDER -> {
+                    if (e.specialTimer <= 0f) {
+                        e.specialTimer = 4.2f
+                        enemies.asSequence()
+                            .filter { it != e && !it.dead }
+                            .filter { it.pos.distanceSquared(e.pos) < 32f }
+                            .take(2)
+                            .forEach { ally -> ally.hp = min(ally.kind.hp * 1.45f, ally.hp + ally.kind.hp * 0.16f) }
+                        spawnBurst(e.pos, 0.18f, floatArrayOf(0.35f,1f,0.55f))
+                    }
+                    if (dist > 2.5f) moveEnemyToward(e, dx, dz, dist, dt, 0.84f)
+                    else if (e.attackTimer <= 0f) {
+                        e.attackTimer = 1.6f
+                        takeDamage(e.kind.attack)
+                    }
+                }
+                EnemyKind.CRYSTAL_SENTINEL -> {
+                    if (e.specialTimer <= 0f) {
+                        e.specialTimer = 2.9f
+                        spawnEnemyProjectile(e,1.25f,6.8f)
+                        spawnEnemyAreaTelegraph(e.pos,2.4f,e.kind.attack*0.28f)
+                    }
+                    if (dist > 6.0f) moveEnemyToward(e,dx,dz,dist,dt,0.54f)
+                    else if (dist < 3.0f && e.attackTimer <= 0f) {
+                        e.attackTimer=1.9f
+                        takeDamage(e.kind.attack*0.82f)
+                    }
+                }
                 EnemyKind.RIFT_ASSASSIN -> {
                     if (e.specialTimer <= 0f && dist < 14f) {
                         e.specialTimer=2.8f
@@ -124,13 +309,30 @@ internal fun Game3DEngine.updateEnemies(dt: Float) {
                         takeDamage(e.kind.attack * 1.3f)
                     }
                 }
-                else -> {
-                    if (dist > 1.6f + e.kind.radius) {
-                        moveEnemyToward(e,dx,dz,dist,dt,if (e.kind == EnemyKind.CRYSTAL_SENTINEL) 0.62f else 1.0f)
-                    } else if (e.attackTimer <= 0f) {
-                        e.attackTimer=if (e.kind == EnemyKind.CRYSTAL_SENTINEL) 1.8f else 1.5f
-                        val contactDamage=if (e.kind == EnemyKind.CRYSTAL_SENTINEL) e.kind.attack*0.82f else e.kind.attack
-                        takeDamage(contactDamage*if(e.elite)1.25f else 1f)
+                EnemyKind.MAGNET_TURRET -> {
+                    if (e.attackTimer <= 0f && dist < 20f) {
+                        e.attackTimer = 2.20f
+                        spawnEnemyProjectile(e, 1.25f, 7.0f)
+                        spawnBurst(e.pos, 0.12f, floatArrayOf(1f,0.55f,0.30f))
+                    }
+                }
+                EnemyKind.ECHO_SPLITTER -> {
+                    if (e.specialTimer <= 0f && dist < 8f) {
+                        e.specialTimer = 5.0f
+                        spawnEnemyOfKind(EnemyKind.AETHER_SLIME, false)
+                        spawnEnemyOfKind(EnemyKind.AETHER_SLIME, false)
+                        spawnBurst(e.pos, 0.24f, floatArrayOf(0.65f,0.54f,1f))
+                    }
+                    if (dist > 1.8f) moveEnemyToward(e,dx,dz,dist,dt,1.18f)
+                    else if (e.attackTimer <= 0f) {
+                        e.attackTimer=1.25f
+                        takeDamage(e.kind.attack*1.08f)
+                    }
+                }
+                EnemyKind.OVERLOAD_TITAN -> {
+                    if (dist > 2.7f && e.attackTimer <= 0f) {
+                        e.attackTimer = if (e.bossPhase >= 3) 0.95f else 1.4f
+                        takeDamage(e.kind.attack * (if (e.bossPhase >= 3) 1.35f else 1.0f))
                     }
                 }
             }
