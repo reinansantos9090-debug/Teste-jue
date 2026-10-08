@@ -106,6 +106,39 @@ static func make_golem(parent: Node3D, color: Color, accent := Color("#f8df9b"))
     cylinder(root,0.19,0.24,0.62,Vector3(0.42,0.18,0),Color("#2a3039"))
     return root
 
+static func make_hound(parent: Node3D, color: Color) -> Node3D:
+    var root := Node3D.new()
+    parent.add_child(root)
+    box(root,Vector3(0.82,0.72,1.35),Vector3(0,0.62,0),color)
+    sphere(root,0.38,Vector3(0,1.08,-0.48),color.lightened(0.08))
+    sphere(root,0.13,Vector3(-0.17,1.18,-0.75),Color("#f3ffff"))
+    sphere(root,0.13,Vector3(0.17,1.18,-0.75),Color("#f3ffff"))
+    box(root,Vector3(0.14,0.48,0.22),Vector3(-0.26,0.25,-0.34),color.darkened(0.20))
+    box(root,Vector3(0.14,0.48,0.22),Vector3(0.26,0.25,-0.34),color.darkened(0.20))
+    return root
+
+static func make_moth(parent: Node3D, color: Color) -> Node3D:
+    var root := Node3D.new()
+    parent.add_child(root)
+    sphere(root,0.42,Vector3(0,1.15,0),color)
+    var left := sphere(root,0.56,Vector3(-0.48,1.30,0),color.lightened(0.14))
+    left.scale = Vector3(1.55,0.55,0.75)
+    var right := sphere(root,0.56,Vector3(0.48,1.30,0),color.lightened(0.08))
+    right.scale = Vector3(1.55,0.55,0.75)
+    sphere(root,0.10,Vector3(-0.11,1.25,-0.37),Color("#ffffff"))
+    sphere(root,0.10,Vector3(0.11,1.25,-0.37),Color("#ffffff"))
+    return root
+
+static func make_colossus(parent: Node3D, color: Color, accent: Color) -> Node3D:
+    var root := Node3D.new()
+    parent.add_child(root)
+    box(root,Vector3(2.0,2.5,1.7),Vector3(0,1.35,0),color)
+    sphere(root,0.72,Vector3(0,2.72,0),color.lightened(0.06))
+    sphere(root,0.22,Vector3(-0.38,2.82,-0.66),accent)
+    sphere(root,0.22,Vector3(0.38,2.82,-0.66),accent)
+    box(root,Vector3(0.62,1.15,0.72),Vector3(-1.28,1.42,0),color.darkened(0.12))
+    box(root,Vector3(0.62,1.15,0.72),Vector3(1.28,1.42,0),color.darkened(0.12))
+    return root
 static func make_portal(parent: Node3D, pos: Vector3, accent: Color) -> Node3D:
     var root := Node3D.new()
     root.position = pos

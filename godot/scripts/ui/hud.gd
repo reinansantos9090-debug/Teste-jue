@@ -14,6 +14,9 @@ var title_label: Label
 var stats_label: Label
 var quest_label: Label
 var move_vector := Vector2.ZERO
+var boss_panel: Panel
+var boss_name: Label
+var boss_bar: ProgressBar
 
 func setup(game_state: Node) -> void:
     state = game_state
@@ -50,6 +53,20 @@ func _build() -> void:
     _move_button(root,"◀",Vector2(0,612),Vector2(84,68),Vector2(-1,0))
     _move_button(root,"●",Vector2(84,612),Vector2(84,68),Vector2(0,1))
     _move_button(root,"▶",Vector2(168,612),Vector2(84,68),Vector2(1,0))
+    boss_panel=Panel.new()
+    boss_panel.position=Vector2(330,28)
+    boss_panel.size=Vector2(390,78)
+    boss_panel.visible=false
+    root.add_child(boss_panel)
+    boss_name=Label.new()
+    boss_name.position=Vector2(18,8)
+    boss_name.add_theme_font_size_override("font_size",16)
+    boss_panel.add_child(boss_name)
+    boss_bar=ProgressBar.new()
+    boss_bar.position=Vector2(18,36)
+    boss_bar.size=Vector2(354,20)
+    boss_bar.show_percentage=false
+    boss_panel.add_child(boss_bar)
 
 func _move_button(parent: Control, caption: String, pos: Vector2, size: Vector2, direction: Vector2) -> void:
     var b := _btn(parent,caption,pos,size)
@@ -88,3 +105,12 @@ func _refresh() -> void:
     stats_label.text = "HP %d/%d  |  LV %d  |  XP %d/%d  |  EN %d/%d" % [int(h["hp"]),int(h["max_hp"]),int(h["level"]),int(h["xp"]),int(h["xp_to_next"]),int(h["energy"]),int(h["max_energy"])]
     var active: Array = state.data["quests"]["active"]
     quest_label.text = "Contrato: nenhum" if active.is_empty() else "Contrato: "+str(active[0])
+
+func set_boss(name_value:String,ratio:float,phase:int)->void:
+    if boss_panel==null:return
+    boss_panel.visible=true
+    boss_name.text="%s • FASE %d" % [name_value,phase]
+    boss_bar.value=clampf(ratio,0.0,1.0)*100.0
+
+func clear_boss()->void:
+    if boss_panel: boss_panel.visible=false

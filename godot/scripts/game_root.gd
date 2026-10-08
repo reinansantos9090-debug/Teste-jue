@@ -61,6 +61,9 @@ var invulnerability:=0.0
 var dead_timer:=0.0
 var portal_step:=0
 var biome_order=["verdant_frontier","crystal_forest","sunset_desert","rust_canyons","sky_ruins"]
+var activity_remaining:=0.0
+var activity_goal:=0
+var activity_progress:=0
 var clock:=0.0
 
 func _ready()->void:
@@ -148,8 +151,10 @@ func _enter_rift()->void:
     director.start_rift("rift_dome")
     world.build_biome("crystal_forest")
     _spawn_wave(16)
-    _spawn_boss("overload_titan")
-    hud.set_mode("RIFT • DOMO DA FENDA")
+    var boss_ids:Array=content.BOSSES.keys()
+    var boss_id:=str(boss_ids[portal_step%boss_ids.size()])
+    _spawn_boss(boss_id)
+    hud.set_mode("RIFT • "+str(content.BOSSES[boss_id]["name"]))
 
 func _enter_versus()->void:
     mode="VERSUS"
@@ -245,15 +250,26 @@ func _spawn_wave(count:int)->void:
     for i in mini(count,perf.max_enemies()):_spawn_enemy(i)
 
 func _spawn_enemy(i:int,id:="")->void:
-    var pool=["slime","slime","stalker","chaos_moth","rift_hound","scrap_golem"]
+    var pool=["slime","slime","stalker","chaos_moth","rift_hound","scrap_golem","crystal_guard","mire_colossus"]
     var kind=id if not id.is_empty() else pool[i%pool.size()]
     var enemy_scene:PackedScene=load("res://scenes/enemies/Enemy.tscn")
     var e:Node3D=enemy_scene.instantiate() if enemy_scene else EnemyScript.new()
     add_child(e);e.position=player.position+Vector3(cos(i*0.9),0,sin(i*0.9))*float(8+i%4*2)
     e.configure(kind,player,content)
-    if kind=="slime":e.attach_visual(Factory.make_slime(e,Color("#43e97c")))
-    elif kind=="scrap_golem":e.attach_visual(Factory.make_golem(e,Color("#c97959")))
-    else:e.attach_visual(Factory.make_crystal_monster(e,Color("#718bff")))
+    if kind=="slime":
+        e.attach_visual(Factory.make_slime(e,Color("#43e97c")))
+    elif kind=="scrap_golem":
+        e.attach_visual(Factory.make_golem(e,Color("#c97959")))
+    elif kind=="rift_hound":
+        e.attach_visual(Factory.make_hound(e,Color("#6c7bff")))
+    elif kind=="chaos_moth":
+        e.attach_visual(Factory.make_moth(e,Color("#d86cff")))
+    elif kind=="mire_colossus":
+        e.attach_visual(Factory.make_colossus(e,Color("#526a55"),Color("#b8ff82")))
+    elif kind=="crystal_guard":
+        e.attach_visual(Factory.make_golem(e,Color("#5b80d4"),Color("#8ffff8")))
+    else:
+        e.attach_visual(Factory.make_crystal_monster(e,Color("#718bff")))
     e.defeated.connect(_enemy_down);enemies.append(e)
 
 func _spawn_boss(id:String)->void:
@@ -261,7 +277,10 @@ func _spawn_boss(id:String)->void:
     var b:Node3D=boss_scene.instantiate() if boss_scene else BossScript.new()
     add_child(b);b.position=player.position+Vector3(0,0,-10)
     b.configure_boss(id,player,content);b.attach_visual(Factory.make_golem(b,Color("#7d5ce8"),Color("#ffd86b")))
-    b.phase_changed.connect(func(p:int):hud.set_mode("CHEFE • FASE %d" % p))
+    b.phase_changed.connect(func(p:int):
+        hud.set_mode("CHEFE • FASE %d" % p)
+        if is_instance_valid(b):b.scale=Vector3.ONE*(1.0 if p==1 else 1.14)
+        vfx.boss_phase(self,b.position,Color("#ff6bd6")))
     b.summon_requested.connect(func(k:String,n:int):for j in n:_spawn_enemy(enemies.size()+j,k))
     b.projectile_requested.connect(_shot)
     b.defeated.connect(_boss_down);boss=b
@@ -277,10 +296,10 @@ func _enemy_down(e:Node3D,x:int)->void:
     quests.add_progress("hunt_01");quests.add_progress("hunt_02");quests.add_progress("hunt_03");e.queue_free()
 
 func _boss_down(b:Node3D,x:int)->void:
-    state.increment_stat("bosses");state.add_xp(x);state.data["world"]["completed_rifts"]+=1;quests.add_progress("boss_01")
+    state.increment_stat("bosses");progression.award_xp(x);state.data["world"]["completed_rifts"]+=1;quests.add_progress("boss_01")
     daily.add("daily_rift",1);director.record_rift()
     if is_instance_valid(b):vfx.boss_phase(self,b.position,Color("#ff6bd6"))
-    b.queue_free();boss=null;hud.set_mode("RIFT CONCLUÍDO • RECOMPENSAS");audio.level_up()
+    b.queue_free();boss=null;activity_progress=1;activity_remaining=0.0;hud.clear_boss();hud.set_mode("RIFT CONCLUÍDO • RECOMPENSAS");audio.level_up()
 
 func _nearest(r:float)->Node3D:
     var best:Node3D=null;var d=r
@@ -337,8 +356,10 @@ func _clear_combat()->void:
     shots.clear()
 
 func _story()->void:
-    var line=story.next_line();hud.set_mode("HISTÓRIA • "+str(line["character"])+": "+str(line["text"]))
-    if int(state.data["story"]["scene"])>=story.current_chapter()["lines"].size():state.set_story_flag("tutorial_complete",true);quests.start("hunt_01")
+    var line=story.next_line()
+    if cutscene and is_instance_valid(cutscene):
+        cutscene.show_line(story.chapter_title(),str(line["character"]),str(line["text"]))
+    hud.set_mode("HISTÓRIA • "+str(line["character"]))
 
 func _wardrobe()->void:
     var unlocked:Array=state.data["wardrobe"]["unlocked"]
@@ -355,6 +376,11 @@ func _core(kind:String)->float:
 
 func _process(delta:float)->void:
     if cutscene and cutscene.is_active(): return
+    if activity_remaining>0.0:
+        activity_remaining=maxf(0.0,activity_remaining-delta)
+        if activity_remaining<=0.0 and mode=="EXPEDITION":
+            state.data["world"]["completed_expeditions"]+=1
+            hud.set_mode("EXPEDIÇÃO ENCERRADA • RESULTADO")
     clock=fmod(clock+delta,600.0);state.data["world"]["day_clock"]=clock
     invulnerability=maxf(0.0,invulnerability-delta)
     events.tick(delta)
@@ -368,6 +394,10 @@ func _process(delta:float)->void:
     if dead_timer<=0.0 and player.has_method("play_run") and v.length_squared()>0.001:player.play_run()
     elif dead_timer<=0.0 and player.has_method("play_idle") and v.length_squared()<=0.001:player.play_idle()
     camera.position=player.position+Vector3(0,14,17);camera.look_at(player.position+Vector3(0,1,0),Vector3.UP)
+    if boss and is_instance_valid(boss):
+        hud.set_boss(str(boss.boss_stats.get("name","CHEFE")),boss.get_hp_ratio(),int(boss.phase))
+    elif hud:
+        hud.clear_boss()
     for i in range(shots.size()-1,-1,-1):
         var p=shots[i]
         if not is_instance_valid(p):shots.remove_at(i);continue

@@ -67,7 +67,7 @@ func _build() -> void:
         b.add_theme_stylebox_override("normal", normal)
         b.add_theme_stylebox_override("hover", hover)
         b.add_theme_stylebox_override("pressed", hover)
-        b.pressed.connect(func(id: String = str(data[0])): _choose(id))
+        b.pressed.connect(_choose.bind(str(data[0])))
         panel.add_child(b)
 
     var close := Button.new()
