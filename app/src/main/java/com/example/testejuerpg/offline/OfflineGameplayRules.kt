@@ -18,6 +18,17 @@ object OfflineCombatRules {
     }
 }
 
+object OfflineCraftingRules {
+    fun canCraft(
+        recipe: com.example.testejuerpg.offline.systems.OfflineCraftDefinition,
+        careerLevel: Int,
+        materials: Map<String, Int>
+    ): Boolean {
+        if (careerLevel < recipe.unlockLevel) return false
+        return recipe.ingredients.all { (materials[it.key] ?: 0) >= it.value }
+    }
+}
+
 object OfflineProgressionRules {
     fun addXp(level: Int, xp: Float, xpToNext: Float, maxHealth: Float, amount: Float): ProgressionResult {
         var nextLevel = level.coerceAtLeast(1)
