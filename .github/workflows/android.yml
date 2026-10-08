@@ -160,9 +160,47 @@ jobs:
           test -f godot/scripts/game_root.gd
           test -f godot/scripts/core/content_database.gd
           test -f godot/scripts/gameplay/combat_service.gd
-          test -f godot/scripts/tests/../core/game_state.gd || true
-          "$GODOT_BIN" --headless --path godot --script tests/test_runner.gd
+          test -f godot/scripts/gameplay/progression_service.gd
+          godot_log="$RUNNER_TEMP/godot-test.log"
+          "$GODOT_BIN" --headless --path godot --script tests/test_runner.gd >"$godot_log" 2>&1 || {
+            cat "$godot_log"
+            exit 1
+          }
+          if grep -Eq 'SCRIPT ERROR:|Parse Error:|ERROR: Failed to load script' "$godot_log"; then
+            cat "$godot_log"
+            echo "Godot reported script/parse errors."
+            exit 1
+          fi
           "$GODOT_BIN" --headless --path godot --export-debug "Android" "$RUNNER_TEMP/aetheria-echoes-godot-debug.apk"
+
+      - name: Validate Kotlin scope and file size
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find app/src/main -type f -name 'GeneratedPack*.kt' -print -quit | grep -q .; then
+            echo "Generated Kotlin packs are forbidden."
+            exit 1
+          fi
+          if grep -RInE 'GeneratedPack|offline/generated|tools/sourcebank|generated_catalog|offline/catalog' app/src; then
+            echo "Retired/generated source reference found."
+            exit 1
+          fi
+          if grep -RInE 'com\.example\.testejuerpg\.(data|model|viewmodel|ui\.screens|ui\.components)' app/src/main/java; then
+            echo "Retired 2D RPG package reference found."
+            exit 1
+          fi
+          oversized=0
+          while IFS= read -r -d '' file; do
+            lines=$(wc -l < "$file")
+            if [ "$lines" -gt 800 ]; then
+              echo "Kotlin file exceeds 800 lines: $file ($lines)"
+              oversized=1
+            fi
+          done < <(find app/src/main -type f -name '*.kt' -print0)
+          test "$oversized" -eq 0
+          kotlin_lines=$(find app/src/main -type f -name '*.kt' -print0 | xargs -0 cat | wc -l)
+          echo "KOTLIN_LINES=$kotlin_lines" >> "$GITHUB_STEP_SUMMARY"
+          test "$kotlin_lines" -le 500000
 
       - name: Count meaningful source
         shell: bash
@@ -189,7 +227,7 @@ jobs:
         run: |
           set -euo pipefail
           test -x ./gradlew
-          ./gradlew :app:testDebugUnitTest --stacktrace
+          ./gradlew test --stacktrace
 
       - name: Build Android host with Gradle wrapper
         shell: bash
