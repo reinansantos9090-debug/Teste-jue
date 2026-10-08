@@ -186,7 +186,7 @@ internal fun Game3DEngine.updateEnemies(dt: Float) {
                 EnemyKind.CRYSTAL_BRUTE -> {
                     if (e.specialTimer <= 0f && dist < 10f) {
                         e.specialTimer = 5.2f
-                        moveEnemyToward(e, dx, dz, dist, dtSafe() * 0f + 0.0f, 3.0f)
+                        moveEnemyToward(e, dx, dz, dist, dt, 2.45f)
                         spawnEnemyAreaTelegraph(e.pos, 2.6f, e.kind.attack * 0.9f)
                     } else if (dist > 2.3f) {
                         moveEnemyToward(e, dx, dz, dist, dt, 0.65f)
