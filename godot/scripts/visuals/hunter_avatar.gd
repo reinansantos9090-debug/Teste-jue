@@ -51,7 +51,7 @@ func _ready() -> void:
 
 func _build() -> void:
     for child in get_children():
-        child.queue_free()
+        child.free()
 
     skeleton = Skeleton3D.new()
     skeleton.name = "Rig"

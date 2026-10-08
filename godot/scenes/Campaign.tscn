@@ -1,3 +1,9 @@
 [gd_scene format=3]
 
 [node name="Campaign" type="Node3D"]
+
+[node name="Prologue" type="Marker3D" parent="."]
+position = Vector3(0, 0, 5)
+
+[node name="ChapterGate" type="Marker3D" parent="."]
+position = Vector3(0, 0, -8)

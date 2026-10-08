@@ -1,3 +1,11 @@
 [gd_scene format=3]
 
 [node name="ExpeditionWorld" type="Node3D"]
+
+[node name="PlayerSpawn" type="Marker3D" parent="."]
+position = Vector3(0, 0.1, 6)
+
+[node name="PortalReturn" type="Marker3D" parent="."]
+position = Vector3(0, 0, 0)
+
+[node name="ArenaCenter" type="Marker3D" parent="."]

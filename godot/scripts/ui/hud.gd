@@ -6,6 +6,8 @@ signal inventory_pressed
 signal story_pressed
 signal wardrobe_pressed
 signal dodge_pressed
+signal menu_pressed
+signal arsenal_pressed
 
 var state: Node
 var title_label: Label
@@ -36,8 +38,9 @@ func _build() -> void:
     root.add_child(quest_label)
     _btn(root,"PORTAL",Vector2(760,24),Vector2(170,58)).pressed.connect(func(): portal_pressed.emit())
     _btn(root,"HISTÓRIA",Vector2(945,24),Vector2(170,58)).pressed.connect(func(): story_pressed.emit())
-    _btn(root,"ARMÁRIO",Vector2(575,24),Vector2(170,58)).pressed.connect(func(): wardrobe_pressed.emit())
-    _btn(root,"INVENTÁRIO",Vector2(1000,105),Vector2(215,62)).pressed.connect(func(): inventory_pressed.emit())
+    _btn(root,"ARMÁRIO",Vector2(575,24),Vector2(160,58)).pressed.connect(func(): wardrobe_pressed.emit())
+    _btn(root,"ARSENAL",Vector2(745,24),Vector2(160,58)).pressed.connect(func(): arsenal_pressed.emit())
+    _btn(root,"MENU",Vector2(1000,105),Vector2(215,62)).pressed.connect(func(): menu_pressed.emit())
     _btn(root,"ATAQUE",Vector2(1000,515),Vector2(220,105)).pressed.connect(func(): attack_pressed.emit())
     _btn(root,"ESQUIVA",Vector2(1000,625),Vector2(220,65)).pressed.connect(func(): dodge_pressed.emit())
     _btn(root,"H1",Vector2(790,545),Vector2(78,78)).pressed.connect(func(): ability_pressed.emit(0))

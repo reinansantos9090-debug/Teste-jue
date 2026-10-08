@@ -44,15 +44,15 @@ func build_biome(id:String) -> void:
 
 func _reset() -> void:
     if world_root and is_instance_valid(world_root):
-        world_root.queue_free()
+        world_root.free()
     world_root=Node3D.new()
     world_root.name="WorldRoot"
     root.add_child(world_root)
     if sun and is_instance_valid(sun):
-        sun.queue_free()
+        sun.free()
     if root:
         var old_env=root.get_node_or_null("World_Environment")
-        if old_env:old_env.queue_free()
+        if old_env:old_env.free()
 
 func _make_environment(background:Color)->void:
     var node:=WorldEnvironment.new()

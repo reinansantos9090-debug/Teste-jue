@@ -18,6 +18,13 @@ const HunterAvatar=preload("res://scripts/visuals/hunter_avatar.gd")
 const VfxScript=preload("res://scripts/visuals/vfx_service.gd")
 const CutsceneScript=preload("res://scripts/gameplay/cutscene_service.gd")
 const VisualCatalogScript=preload("res://scripts/gameplay/visual_content_catalog.gd")
+const DailyScript=preload("res://scripts/gameplay/daily_service.gd")
+const CoreScript=preload("res://scripts/gameplay/core_service.gd")
+const ProgressionScript=preload("res://scripts/gameplay/progression_service.gd")
+const WardrobeScript=preload("res://scripts/gameplay/wardrobe_service.gd")
+const PortalScript=preload("res://scripts/gameplay/portal_service.gd")
+const DirectorScript=preload("res://scripts/gameplay/offline_director.gd")
+const OperationsMenuScript=preload("res://scripts/ui/activity_menu.gd")
 
 var state:Node
 var save:Node
@@ -34,6 +41,13 @@ var hud:CanvasLayer
 var vfx:Node
 var cutscene:CanvasLayer
 var visual_catalog:Node
+var daily:Node
+var cores:Node
+var progression:Node
+var wardrobe:Node
+var portal_service:Node
+var director:Node
+var operations_menu:CanvasLayer
 var player:Node3D
 var camera:Camera3D
 var enemies:Array[Node3D]=[]
@@ -59,13 +73,21 @@ func _ready()->void:
     story=StoryScript.new();add_child(story);story.setup(state)
     events=EventScript.new();add_child(events);events.setup(state,content)
     visual_catalog=VisualCatalogScript.new();add_child(visual_catalog)
+    daily=DailyScript.new();add_child(daily);daily.setup(state)
+    cores=CoreScript.new();add_child(cores);cores.setup(state,content)
+    progression=ProgressionScript.new();add_child(progression);progression.setup(state)
+    wardrobe=WardrobeScript.new();add_child(wardrobe);wardrobe.setup(state,content)
+    portal_service=PortalScript.new();add_child(portal_service);portal_service.setup(state)
+    director=DirectorScript.new();add_child(director);director.setup(state,content)
     vfx=VfxScript.new();add_child(vfx)
     cutscene=CutsceneScript.new();add_child(cutscene)
     cutscene.next_requested.connect(_story)
     inventory=InventoryScript.new();add_child(inventory);inventory.setup(state)
     audio=AudioScript.new();add_child(audio)
     combat=CombatScript.new();add_child(combat);combat.setup(state,audio)
-    player=HunterAvatar.new();player.name="Hunter";add_child(player)
+    var hunter_scene:PackedScene=load("res://scenes/player/Hunter.tscn")
+    player=hunter_scene.instantiate() if hunter_scene else HunterAvatar.new()
+    player.name="Hunter";add_child(player)
     _set_player()
     camera=Camera3D.new();camera.fov=48.0;add_child(camera);camera.current=true
     hud=HudScript.new();add_child(hud);hud.setup(state)
@@ -76,9 +98,13 @@ func _ready()->void:
     hud.story_pressed.connect(_story)
     hud.wardrobe_pressed.connect(_wardrobe)
     hud.dodge_pressed.connect(_dodge)
+    hud.menu_pressed.connect(_open_operations)
+    hud.arsenal_pressed.connect(_cycle_weapon)
+    operations_menu=OperationsMenuScript.new()
+    add_child(operations_menu)
+    operations_menu.selected.connect(_run_operation)
     world.build_hq()
     quests.start("story_01")
-    _set_player()
     hud.set_mode("QG NO TERRAÇO • PORTAL CENTRAL")
 
 func _set_player()->void:
@@ -95,20 +121,87 @@ func _set_player()->void:
 func _portal()->void:
     audio.click()
     if mode=="HQ":
-        mode="EXPEDITION"
-        portal_step=(portal_step+1)%biome_order.size()
-        var biome_id=str(biome_order[portal_step])
-        world.build_biome(biome_id)
-        _spawn_wave(14)
-        hud.set_mode("EXPEDIÇÃO • "+str(content.BIOMES[biome_id]["name"]))
+        _enter_expedition()
     elif mode=="EXPEDITION":
-        mode="RIFT"
-        world.build_biome("crystal_forest")
-        _spawn_wave(16)
-        _spawn_boss("overload_titan")
-        hud.set_mode("RIFT • DOMO DA FENDA")
+        _enter_rift()
+    elif mode=="RIFT":
+        _enter_versus()
     else:
-        mode="HQ";_clear_combat();world.build_hq();hud.set_mode("QG NO TERRAÇO • PORTAL CENTRAL")
+        _enter_hq()
+
+func _enter_hq()->void:
+    mode="HQ";_clear_combat();portal_service.enter_hq();director.enter_hq();world.build_hq();hud.set_mode("QG NO TERRAÇO • PORTAL CENTRAL")
+
+func _enter_expedition()->void:
+    mode="EXPEDITION"
+    portal_step=(portal_step+1)%biome_order.size()
+    var biome_id:=str(biome_order[portal_step])
+    portal_service.enter_expedition(biome_id)
+    director.start_expedition(biome_id)
+    world.build_biome(biome_id)
+    _spawn_wave(14)
+    hud.set_mode("EXPEDIÇÃO • "+str(content.BIOMES[biome_id]["name"]))
+
+func _enter_rift()->void:
+    mode="RIFT"
+    portal_service.enter_rift("rift_dome")
+    director.start_rift("rift_dome")
+    world.build_biome("crystal_forest")
+    _spawn_wave(16)
+    _spawn_boss("overload_titan")
+    hud.set_mode("RIFT • DOMO DA FENDA")
+
+func _enter_versus()->void:
+    mode="VERSUS"
+    portal_service.enter_versus()
+    director.start_versus()
+    world.build_biome("sky_ruins")
+    _spawn_wave(8)
+    hud.set_mode("VERSUS • SIMULAÇÃO OFFLINE")
+
+func _open_operations()->void:
+    if operations_menu and not operations_menu.is_open():
+        operations_menu.show_menu()
+
+func _run_operation(action_id:String)->void:
+    match action_id:
+        "expedition": _enter_expedition()
+        "rift": _enter_rift()
+        "versus": _enter_versus()
+        "daily": hud.set_mode("DIÁRIAS • "+daily.summary())
+        "event":
+            var index:=0
+            for item in content.EVENTS:
+                if director.active_event==str(item["id"]): index=(index+1)%content.EVENTS.size(); continue
+                director.start_event(str(item["id"]))
+                events.start(str(item["id"]))
+                hud.set_mode("EVENTO • "+str(item["name"]))
+                break
+        "cores":
+            hud.set_mode("NÚCLEOS • "+str(state.data["cores"]["equipped"].size())+" equipados / "+str(state.data["cores"]["owned"].size())+" possuídos")
+        "craft":
+            var made:=false
+            for recipe in content.RECIPES:
+                if inventory.craft(recipe):
+                    made=true
+                    hud.set_mode("OFICINA • FABRICADO: "+str(recipe["name"]))
+                    break
+            if not made: hud.set_mode("OFICINA • MATERIAIS INSUFICIENTES")
+        "history": _story()
+
+func _cycle_weapon()->void:
+    var ids:=content.WEAPONS.keys()
+    if ids.is_empty():return
+    ids.sort()
+    var current:=str(state.data["loadout"]["weapon"])
+    var idx:=ids.find(current)
+    idx=(idx+1)%ids.size()
+    var next:=str(ids[idx])
+    state.data["loadout"]["weapon"]=next
+    state.state_changed.emit()
+    if player.has_method("equip_weapon"):player.equip_weapon(next)
+    var weapon:Dictionary=content.WEAPONS.get(next,{})
+    hud.set_mode("ARSENAL • %s • %.0f DANO" % [str(weapon.get("name",next)),float(weapon.get("damage",0))])
 
 func _attack()->void:
     if not attack_ready or dead_timer>0.0:return
@@ -130,6 +223,7 @@ func _ability(i:int)->void:
     var h=state.get_hunter()
     if float(h["energy"])<float(a["energy"]):return
     skills[i]=false;h["energy"]=float(h["energy"])-float(a["energy"])
+    daily.add("daily_skill",1)
     if player.has_method("play_skill"):player.play_skill(i)
     if i==0:
         var n=_nearest(12.0)
@@ -153,7 +247,9 @@ func _spawn_wave(count:int)->void:
 func _spawn_enemy(i:int,id:="")->void:
     var pool=["slime","slime","stalker","chaos_moth","rift_hound","scrap_golem"]
     var kind=id if not id.is_empty() else pool[i%pool.size()]
-    var e:=EnemyScript.new();add_child(e);e.position=player.position+Vector3(cos(i*0.9),0,sin(i*0.9))*float(8+i%4*2)
+    var enemy_scene:PackedScene=load("res://scenes/enemies/Enemy.tscn")
+    var e:Node3D=enemy_scene.instantiate() if enemy_scene else EnemyScript.new()
+    add_child(e);e.position=player.position+Vector3(cos(i*0.9),0,sin(i*0.9))*float(8+i%4*2)
     e.configure(kind,player,content)
     if kind=="slime":e.attach_visual(Factory.make_slime(e,Color("#43e97c")))
     elif kind=="scrap_golem":e.attach_visual(Factory.make_golem(e,Color("#c97959")))
@@ -161,7 +257,9 @@ func _spawn_enemy(i:int,id:="")->void:
     e.defeated.connect(_enemy_down);enemies.append(e)
 
 func _spawn_boss(id:String)->void:
-    var b:=BossScript.new();add_child(b);b.position=player.position+Vector3(0,0,-10)
+    var boss_scene:PackedScene=load("res://scenes/bosses/PhaseBoss.tscn")
+    var b:Node3D=boss_scene.instantiate() if boss_scene else BossScript.new()
+    add_child(b);b.position=player.position+Vector3(0,0,-10)
     b.configure_boss(id,player,content);b.attach_visual(Factory.make_golem(b,Color("#7d5ce8"),Color("#ffd86b")))
     b.phase_changed.connect(func(p:int):hud.set_mode("CHEFE • FASE %d" % p))
     b.summon_requested.connect(func(k:String,n:int):for j in n:_spawn_enemy(enemies.size()+j,k))
@@ -174,11 +272,13 @@ func _shot(o:Vector3,t:Vector3,d:float)->void:
 
 func _enemy_down(e:Node3D,x:int)->void:
     state.increment_stat("kills");state.add_xp(x);state.add_item("aether_core",1)
+    daily.add("daily_kills",1);director.record_kill()
     if is_instance_valid(e):vfx.death(self,e.position,Color("#a7d7ff"))
     quests.add_progress("hunt_01");quests.add_progress("hunt_02");quests.add_progress("hunt_03");e.queue_free()
 
 func _boss_down(b:Node3D,x:int)->void:
     state.increment_stat("bosses");state.add_xp(x);state.data["world"]["completed_rifts"]+=1;quests.add_progress("boss_01")
+    daily.add("daily_rift",1);director.record_rift()
     if is_instance_valid(b):vfx.boss_phase(self,b.position,Color("#ff6bd6"))
     b.queue_free();boss=null;hud.set_mode("RIFT CONCLUÍDO • RECOMPENSAS");audio.level_up()
 
@@ -254,6 +354,7 @@ func _core(kind:String)->float:
     return total
 
 func _process(delta:float)->void:
+    if cutscene and cutscene.is_active(): return
     clock=fmod(clock+delta,600.0);state.data["world"]["day_clock"]=clock
     invulnerability=maxf(0.0,invulnerability-delta)
     events.tick(delta)

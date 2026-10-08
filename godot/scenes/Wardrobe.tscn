@@ -1,3 +1,9 @@
 [gd_scene format=3]
 
 [node name="Wardrobe" type="Node3D"]
+
+[node name="PreviewAnchor" type="Marker3D" parent="."]
+position = Vector3(0, 0, 2)
+
+[node name="StyleCamera" type="Marker3D" parent="."]
+position = Vector3(0, 2, 7)

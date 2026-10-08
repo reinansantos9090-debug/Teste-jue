@@ -1,3 +1,12 @@
 [gd_scene format=3]
 
 [node name="HQ" type="Node3D"]
+
+[node name="PortalAnchor" type="Marker3D" parent="."]
+position = Vector3(0, 0, 0)
+
+[node name="MissionBoard" type="Marker3D" parent="."]
+position = Vector3(-11, 0.2, -5)
+
+[node name="WardrobeStation" type="Marker3D" parent="."]
+position = Vector3(11, 0.2, -5)

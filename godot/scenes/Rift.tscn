@@ -1,3 +1,11 @@
 [gd_scene format=3]
 
 [node name="Rift" type="Node3D"]
+
+[node name="BossSpawn" type="Marker3D" parent="."]
+position = Vector3(0, 0, -10)
+
+[node name="PlayerSpawn" type="Marker3D" parent="."]
+position = Vector3(0, 0.1, 7)
+
+[node name="ArenaBoundary" type="Marker3D" parent="."]
