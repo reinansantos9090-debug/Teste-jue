@@ -5,6 +5,7 @@ signal portal_pressed
 signal inventory_pressed
 signal story_pressed
 signal wardrobe_pressed
+signal dodge_pressed
 
 var state: Node
 var title_label: Label
@@ -37,10 +38,11 @@ func _build() -> void:
     _btn(root,"HISTÓRIA",Vector2(945,24),Vector2(170,58)).pressed.connect(func(): story_pressed.emit())
     _btn(root,"ARMÁRIO",Vector2(575,24),Vector2(170,58)).pressed.connect(func(): wardrobe_pressed.emit())
     _btn(root,"INVENTÁRIO",Vector2(1000,105),Vector2(215,62)).pressed.connect(func(): inventory_pressed.emit())
-    _btn(root,"ATAQUE",Vector2(1000,545),Vector2(220,120)).pressed.connect(func(): attack_pressed.emit())
-    _btn(root,"H1",Vector2(795,575),Vector2(78,78)).pressed.connect(func(): ability_pressed.emit(0))
-    _btn(root,"H2",Vector2(885,535),Vector2(78,78)).pressed.connect(func(): ability_pressed.emit(1))
-    _btn(root,"H3",Vector2(885,625),Vector2(78,78)).pressed.connect(func(): ability_pressed.emit(2))
+    _btn(root,"ATAQUE",Vector2(1000,515),Vector2(220,105)).pressed.connect(func(): attack_pressed.emit())
+    _btn(root,"ESQUIVA",Vector2(1000,625),Vector2(220,65)).pressed.connect(func(): dodge_pressed.emit())
+    _btn(root,"H1",Vector2(790,545),Vector2(78,78)).pressed.connect(func(): ability_pressed.emit(0))
+    _btn(root,"H2",Vector2(875,505),Vector2(78,78)).pressed.connect(func(): ability_pressed.emit(1))
+    _btn(root,"H3",Vector2(875,595),Vector2(78,78)).pressed.connect(func(): ability_pressed.emit(2))
     _move_button(root,"▲",Vector2(42,545),Vector2(84,68),Vector2(0,-1))
     _move_button(root,"◀",Vector2(0,612),Vector2(84,68),Vector2(-1,0))
     _move_button(root,"●",Vector2(84,612),Vector2(84,68),Vector2(0,1))
@@ -58,6 +60,16 @@ func _btn(parent: Control, text_value: String, pos: Vector2, size: Vector2) -> B
     b.position = pos
     b.size = size
     b.add_theme_font_size_override("font_size",18)
+    var normal:=StyleBoxFlat.new()
+    normal.bg_color=Color("#162235d9")
+    normal.border_color=Color("#5bcfff88")
+    normal.set_border_width_all(1)
+    normal.set_corner_radius_all(14)
+    var hover:=normal.duplicate()
+    hover.bg_color=Color("#24405fdc")
+    b.add_theme_stylebox_override("normal",normal)
+    b.add_theme_stylebox_override("hover",hover)
+    b.add_theme_stylebox_override("pressed",hover)
     parent.add_child(b)
     return b
 
