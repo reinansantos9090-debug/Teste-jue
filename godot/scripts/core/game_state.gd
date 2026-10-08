@@ -14,7 +14,7 @@ func reset() -> void:
     data = {
         "schema": SCHEMA,
         "hunter": {"name":"Aether Hunter","level":1,"xp":0,"xp_to_next":120,"hp":120,"max_hp":120,"energy":100.0,"max_energy":100.0,"gold":0,"chaos_energy":0,"rank":0},
-        "loadout": {"weapon":"volt_blades","ability_1":"shock_dash","ability_2":"aether_burst","ability_3":"nanodrone","core_slots":["damage","cooldown","dodge"],"ability_1":"volt_dash","ability_2":"arc_burst","ability_3":"nanodrone"},
+        "loadout": {"weapon":"volt_blades","ability_1":"volt_dash","ability_2":"arc_burst","ability_3":"prism_barrier","core_slots":["damage","cooldown","dodge"]},
         "inventory": {"aether_core":8,"slime_gel":12,"plasma_fiber":4,"scrap_plate":5,"power_cell":3,"oak_branch":8,"stone":6,"herb":10},
         "quests": {"active":["story_01"],"progress":{},"completed":[]},
         "story": {"chapter":1,"scene":0,"flags":{"tutorial_complete":false,"rooftop_unlocked":true},"journal":[]},
