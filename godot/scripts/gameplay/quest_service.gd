@@ -53,17 +53,17 @@ func add_rift()->void:
 
 func complete(id:String)->void:
     var active:Array=game_state.data["quests"]["active"]
-    var completed:Array=game_state.data["quests"]["completed"]
+    var completed_ids:Array=game_state.data["quests"]["completed"]
     active.erase(id)
-    if id in completed:return
-    completed.append(id)
+    if id in completed_ids:return
+    completed_ids.append(id)
     var quest:=get_quest(id)
     game_state.add_xp(int(quest.get("xp",0)))
     var rewards:Dictionary=quest.get("rewards",{})
     for item in rewards.keys():game_state.add_item(str(item),int(rewards[item]))
     var next_id:=str(quest.get("next",""))
     if not next_id.is_empty():start(next_id)
-    completed.emit(id)
+    self.completed.emit(id)
     game_state.quest_changed.emit()
     updated.emit()
 
