@@ -1,0 +1,23 @@
+# Local/editor state
+.gradle/
+**/.gradle/
+.godot/
+**/.godot/
+.idea/
+*.iml
+
+# Build outputs
+build/
+**/build/
+app/build/
+godot/build/
+*.apk
+*.aab
+
+# Generated caches and retired source catalogs
+tools/sourcebank/
+generated_catalog/
+offline/catalog/
+
+# Godot user-generated files
+godot/.godot/
