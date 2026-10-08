@@ -412,6 +412,11 @@ class OfflineHunterDirector(seed: Int = 2025) {
         return if (core.type == OfflineCoreType.DODGE) min(0.6f, core.bonus) else 0f
     }
 
+    fun criticalChance(weaponId: String): Float {
+        val core = equipped[weaponId] ?: return 0f
+        return if (core.type == OfflineCoreType.CRITICAL_DAMAGE) min(0.75f, core.bonus) else 0f
+    }
+
     fun maxHealthMultiplier(weaponId: String): Float {
         val core = equipped[weaponId] ?: return 1f
         return if (core.type == OfflineCoreType.MAX_HEALTH) 1f + core.bonus else 1f

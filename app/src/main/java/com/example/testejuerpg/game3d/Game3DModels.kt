@@ -81,7 +81,7 @@ data class Projectile(
     val playerOwned: Boolean
 )
 
-data class Drop(val pos: V3, val type: Int, var life: Float = 30f)
+data class Drop(val pos: V3, val type: Int, val amount: Int = 1, val rarity: Int = 0, var life: Float = 30f)
 
 data class Particle(
     val pos: V3,

@@ -39,6 +39,12 @@ import com.example.testejuerpg.offline.systems.OfflineMapRuntime
 import com.example.testejuerpg.offline.systems.OfflineSquadCatalog
 import com.example.testejuerpg.offline.systems.OfflineHistoryArchive
 import com.example.testejuerpg.offline.systems.OfflineEmoteCatalog
+import com.example.testejuerpg.offline.EngineSaveData
+import com.example.testejuerpg.offline.OfflineCombatRules
+import com.example.testejuerpg.offline.OfflineLootRules
+import com.example.testejuerpg.offline.OfflineProgressionRules
+import com.example.testejuerpg.offline.OfflineSaveCodec
+import com.example.testejuerpg.offline.LootRarity
 
 
 data class MapObstacleView(val x: Float, val z: Float, val halfX: Float, val halfZ: Float)
@@ -373,13 +379,17 @@ class Game3DEngine(private val context: Context) {
             val dz = d.pos.z - player.z
             if (dx * dx + dz * dz < 1.69f) {
                 if (d.type == 0) {
-                    aetherCores += 1
-                    hunterDirector.recordCore(1)
+                    aetherCores += d.amount.coerceAtLeast(1)
+                    hunterDirector.recordCore(d.amount.coerceAtLeast(1))
                     if (activityMode == OfflineMode.STORY) {
                         storyCampaign.recordCore()
                         checkStoryObjective()
                     }
-                } else gold += 8
+                    objectiveText = "LOOT • Núcleos +" + d.amount + " • " + LootRarity.fromId(d.rarity).label
+                } else {
+                    gold += d.amount.coerceAtLeast(1)
+                    objectiveText = "LOOT • Ouro +" + d.amount + " • " + LootRarity.fromId(d.rarity).label
+                }
                 spawnBurst(
                     d.pos,
                     0.14f,
@@ -748,12 +758,9 @@ class Game3DEngine(private val context: Context) {
         if (e.kind == EnemyKind.ECHO_SPLITTER) {
             repeat(2) { spawnEnemyOfKind(EnemyKind.AETHER_SLIME, false) }
         }
-        if (e.kind != EnemyKind.OVERLOAD_TITAN) {
-            drops += Drop(V3(e.pos.x, 0.3f, e.pos.z), 0)
-            if (random.nextFloat() < 0.25f) {
-                drops += Drop(V3(e.pos.x + 0.3f, 0.3f, e.pos.z), 1)
-            }
-        }
+        val loot = OfflineLootRules.roll(random.nextFloat(), random.nextFloat(), e.elite, e.kind == EnemyKind.OVERLOAD_TITAN)
+        drops += Drop(V3(e.pos.x, 0.3f, e.pos.z), 0, loot.cores, loot.rarity.id)
+        drops += Drop(V3(e.pos.x + 0.34f, 0.3f, e.pos.z), 1, loot.gold, loot.rarity.id)
 
         spawnBurst(
             e.pos,
@@ -790,10 +797,18 @@ class Game3DEngine(private val context: Context) {
         primaryTimer = weapon.cooldown * hunterDirector.cooldownMultiplier(weaponId) / hunterDirector.attackSpeedMultiplier(weaponId)
         val target = nearestEnemy(weapon.mainRange) ?: return
 
+        val damageBonus = hunterDirector.damageMultiplier(weaponId) - 1f
+        val damage = OfflineCombatRules.playerDamage(
+            weapon.mainDamage,
+            level,
+            damageBonus,
+            hunterDirector.criticalChance(weaponId),
+            random.nextFloat()
+        )
         if (weapon.archetype == 0 || weapon.archetype == 3) {
-            meleeAttack(target, weapon.mainDamage * hunterDirector.damageMultiplier(weaponId), if (weapon.archetype == 3) 2.8f else 2.4f)
+            meleeAttack(target, damage, if (weapon.archetype == 3) 2.8f else 2.4f)
         } else {
-            fireProjectile(target.pos, weapon.mainDamage * hunterDirector.damageMultiplier(weaponId), 0.9f + weapon.mainRange * 0.03f)
+            fireProjectile(target.pos, damage, 0.9f + weapon.mainRange * 0.03f)
         }
     }
 
@@ -1259,19 +1274,29 @@ class Game3DEngine(private val context: Context) {
     private fun invalidateUi() = onUiInvalidate?.invoke()
 
     private fun addXp(amount: Float) {
-        xp += amount
-        while (xp >= xpToNext) {
-            xp -= xpToNext
-            level += 1
-            xpToNext = floor(xpToNext * 1.28f + 20f)
-            maxHp += 14f
+        val result = OfflineProgressionRules.addXp(level, xp, xpToNext, maxHp, amount)
+        level = result.level
+        xp = result.xp
+        xpToNext = result.xpToNext
+        maxHp = result.maxHealth
+        if (result.levelsGained > 0) {
             hp = maxHp
-            vibrate(90)
-            spawnBurst(player, 0.7f, floatArrayOf(0.95f, 0.8f, 0.3f))
+            repeat(result.levelsGained) {
+                vibrate(90)
+                spawnBurst(player, 0.7f, floatArrayOf(0.95f, 0.8f, 0.3f))
+            }
         }
     }
 
     private fun load() {
+        prefs.getString("engine_state", null)?.let { encoded ->
+            OfflineSaveCodec.decode(encoded)?.let { s ->
+                level=s.level; xp=s.xp; xpToNext=s.xpToNext; maxHp=s.maxHp; hp=s.hp
+                gold=s.gold; aetherCores=s.cores; kills=s.kills
+                weaponIndex=s.weapon.coerceIn(0,WEAPONS.lastIndex); player.x=s.px; player.z=s.pz; playerName=s.name
+                return
+            }
+        }
         level = prefs.getInt("level", 1)
         xp = prefs.getFloat("xp", 0f)
         xpToNext = prefs.getFloat("xp_next", 100f)
@@ -1287,7 +1312,9 @@ class Game3DEngine(private val context: Context) {
     }
 
     private fun save() {
+        val snapshot=EngineSaveData(level,xp,xpToNext,maxHp,hp,gold,aetherCores,kills,weaponIndex,player.x,player.z,playerName)
         prefs.edit()
+            .putString("engine_state",OfflineSaveCodec.encode(snapshot))
             .putInt("level", level)
             .putFloat("xp", xp)
             .putFloat("xp_next", xpToNext)
