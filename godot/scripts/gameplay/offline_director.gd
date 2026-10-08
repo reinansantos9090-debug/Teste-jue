@@ -22,7 +22,6 @@ func enter_hq()->void:
 func start_expedition(biome:String)->void:
     portal_mode="EXPEDITION"
     destination=biome
-    state.data["world"]["completed_expeditions"]+=1
     activity_changed.emit("EXPEDIÇÃO • "+biome)
 
 func start_rift(arena:String)->void:
@@ -65,7 +64,6 @@ func record_kill()->void:
         state.data["hunter"]["chaos_energy"]+=100
 
 func record_rift()->void:
-    state.data["world"]["completed_rifts"]+=1
     state.data["hunter"]["chaos_energy"]+=160
 
 func unlock_style()->String:

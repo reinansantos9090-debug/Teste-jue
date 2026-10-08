@@ -298,7 +298,7 @@ func _enemy_down(e:Node3D,x:int)->void:
     quests.add_progress("hunt_01");quests.add_progress("hunt_02");quests.add_progress("hunt_03");e.queue_free()
 
 func _boss_down(b:Node3D,x:int)->void:
-    state.increment_stat("bosses");progression.award_xp(x);state.data["world"]["completed_rifts"]+=1;quests.add_progress("boss_01")
+    state.increment_stat("bosses");progression.award_xp(roundi(float(x)*events.multiplier()));quests.add_progress("boss_01")
     daily.add("daily_rift",1);director.record_rift()
     if is_instance_valid(b):vfx.boss_phase(self,b.position,Color("#ff6bd6"))
     b.queue_free();boss=null;activity_progress=1;activity_remaining=0.0;hud.clear_boss();hud.set_mode("RIFT CONCLUÍDO • RECOMPENSAS");audio.level_up()
@@ -359,6 +359,9 @@ func _clear_combat()->void:
 
 func _story()->void:
     var line=story.next_line()
+    if int(state.data["story"]["chapter"])==1 and int(state.data["story"]["scene"])>=story.current_chapter()["lines"].size():
+        state.set_story_flag("tutorial_complete",true)
+        quests.start("hunt_01")
     if cutscene and is_instance_valid(cutscene):
         cutscene.show_line(story.chapter_title(),str(line["character"]),str(line["text"]))
     hud.set_mode("HISTÓRIA • "+str(line["character"]))
