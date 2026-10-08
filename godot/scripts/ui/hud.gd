@@ -17,6 +17,7 @@ var move_vector := Vector2.ZERO
 var boss_panel: Panel
 var boss_name: Label
 var boss_bar: ProgressBar
+var low_hp_overlay: ColorRect
 
 func setup(game_state: Node) -> void:
     state = game_state
@@ -39,6 +40,11 @@ func _build() -> void:
     quest_label = Label.new()
     quest_label.position = Vector2(22,84)
     root.add_child(quest_label)
+    low_hp_overlay=ColorRect.new()
+    low_hp_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    low_hp_overlay.color=Color(0.82,0.08,0.10,0.0)
+    low_hp_overlay.mouse_filter=Control.MOUSE_FILTER_IGNORE
+    root.add_child(low_hp_overlay)
     _btn(root,"PORTAL",Vector2(760,24),Vector2(170,58)).pressed.connect(func(): portal_pressed.emit())
     _btn(root,"HISTÓRIA",Vector2(945,24),Vector2(170,58)).pressed.connect(func(): story_pressed.emit())
     _btn(root,"ARMÁRIO",Vector2(575,24),Vector2(160,58)).pressed.connect(func(): wardrobe_pressed.emit())
@@ -105,6 +111,9 @@ func _refresh() -> void:
     stats_label.text = "HP %d/%d  |  LV %d  |  XP %d/%d  |  EN %d/%d" % [int(h["hp"]),int(h["max_hp"]),int(h["level"]),int(h["xp"]),int(h["xp_to_next"]),int(h["energy"]),int(h["max_energy"])]
     var active: Array = state.data["quests"]["active"]
     quest_label.text = "Contrato: nenhum" if active.is_empty() else "Contrato: "+str(active[0])
+    if low_hp_overlay:
+        var ratio:=float(h["hp"])/maxf(1.0,float(h["max_hp"]))
+        low_hp_overlay.color.a=clampf((0.32-ratio)*1.6,0.0,0.34)
 
 func set_boss(name_value:String,ratio:float,phase:int)->void:
     if boss_panel==null:return

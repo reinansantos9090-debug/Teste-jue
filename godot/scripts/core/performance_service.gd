@@ -50,3 +50,9 @@ func vfx_multiplier() -> float:
 
 func shadows_enabled() -> bool:
     return bool(current()["shadows"])
+
+func apply(viewport: Viewport, world: Node) -> void:
+    if viewport:
+        viewport.scaling_3d_scale = float(current()["render_scale"])
+    if world and "sun" in world and world.sun:
+        world.sun.shadow_enabled = bool(current()["shadows"])

@@ -300,14 +300,40 @@ func _apply_animation(delta: float) -> void:
         right_arm.rotation.x = walk_wave * 0.28
         torso.position.y = abs(walk_wave) * 0.035
     elif _animation == "attack":
-        var t := clampf(_animation_time / 0.34, 0.0, 1.0)
+        var t := clampf(_animation_time / 0.42, 0.0, 1.0)
         var swing := sin(t * PI)
-        right_arm.rotation.z = -0.25 - swing * 0.85
-        right_forearm.rotation.z = -0.20 - swing * 1.10
-        left_arm.rotation.z = 0.18 + swing * 0.20
-        weapon_root.rotation.y = lerpf(-0.35, 1.35, clampf(t * 1.2,0.0,1.0))
-        model_root.position.z = -swing * 0.16
-        if _animation_time >= 0.36:
+        match weapon_id:
+            "scrap_hammer":
+                right_arm.rotation.z = -0.20 - swing * 1.05
+                right_forearm.rotation.z = -0.10 - swing * 1.35
+                weapon_root.rotation.y = lerpf(-0.75, 0.95, t)
+                model_root.position.z = -swing * 0.24
+            "toxic_bow":
+                var draw := sin(t * PI)
+                right_arm.rotation.z = -0.18 - draw * 0.42
+                left_arm.rotation.z = 0.18 + draw * 0.38
+                right_forearm.rotation.z = -0.15 - draw * 0.52
+                left_forearm.rotation.z = 0.10 + draw * 0.52
+                weapon_root.rotation.y = sin(t*PI)*0.08
+            "pulse_cannon":
+                right_arm.rotation.x = -0.45 + swing * 0.18
+                left_arm.rotation.x = -0.32 + swing * 0.12
+                weapon_root.position.z = -0.10 + swing * 0.22
+                weapon_root.rotation.x = -0.15 + swing * 0.25
+            "orbit_orbs":
+                right_arm.rotation.x = -0.50 - swing * 0.28
+                left_arm.rotation.x = -0.45 + swing * 0.24
+                weapon_root.rotation.z = sin(t*PI)*0.55
+            "aether_lance", "volt_blades":
+                right_arm.rotation.z = -0.25 - swing * 0.95
+                right_forearm.rotation.z = -0.20 - swing * 1.10
+                left_arm.rotation.z = 0.18 + swing * 0.20
+                weapon_root.rotation.y = lerpf(-0.35, 1.35, t)
+            _:
+                right_arm.rotation.z = -0.22 - swing * 0.88
+                left_arm.rotation.z = 0.12 + swing * 0.18
+                weapon_root.rotation.y = lerpf(-0.25, 1.00, t)
+        if _animation_time >= 0.44:
             _set_animation("idle" if speed <= 0.1 else "run")
     elif _animation.begins_with("skill_"):
         var pulse := (sin(_animation_time * 15.0) * 0.5 + 0.5)

@@ -71,6 +71,7 @@ func _ready()->void:
     content=ContentScript.new();add_child(content)
     save=SaveScript.new();add_child(save);save.setup(state);save.load_now()
     perf=PerfScript.new();add_child(perf)
+    perf.quality_changed.connect(_apply_quality)
     world=WorldScript.new();add_child(world);world.setup(self,content)
     quests=QuestScript.new();add_child(quests);quests.setup(state,content)
     story=StoryScript.new();add_child(story);story.setup(state)
@@ -107,6 +108,7 @@ func _ready()->void:
     add_child(operations_menu)
     operations_menu.selected.connect(_run_operation)
     world.build_hq()
+    _apply_quality(perf.current())
     quests.start("story_01")
     hud.set_mode("QG NO TERRAÇO • PORTAL CENTRAL")
 
@@ -315,7 +317,7 @@ func _dodge()->void:
     dodge_ready=false
     invulnerability=0.48
     if player.has_method("play_dodge"):player.play_dodge()
-    var direction:=Input.get_vector("move_left","move_right","move_forward","move_back")
+    var direction:Vector2=hud.move_vector if hud and hud.move_vector.length_squared()>0.01 else Input.get_vector("move_left","move_right","move_forward","move_back")
     if direction.length_squared()<0.01:
         direction=Vector2(0,-1)
     direction=direction.normalized()
@@ -386,14 +388,16 @@ func _process(delta:float)->void:
     events.tick(delta)
     state.increment_stat("play_seconds",delta)
     var h=state.get_hunter();h["energy"]=minf(float(h["max_energy"]),float(h["energy"])+delta*4.5)
-    var v=Input.get_vector("move_left","move_right","move_forward","move_back")
+    var v:=hud.move_vector if hud and hud.move_vector.length_squared()>0.01 else Input.get_vector("move_left","move_right","move_forward","move_back")
     if v.length_squared()>0.001 and dead_timer<=0.0:
         v=v.normalized();player.position+=Vector3(v.x,0,v.y)*6.2*delta
         player.position.x=clampf(player.position.x,-25,25);player.position.z=clampf(player.position.z,-25,25)
     if player.has_method("set_locomotion"):player.set_locomotion(v)
     if dead_timer<=0.0 and player.has_method("play_run") and v.length_squared()>0.001:player.play_run()
     elif dead_timer<=0.0 and player.has_method("play_idle") and v.length_squared()<=0.001:player.play_idle()
-    camera.position=player.position+Vector3(0,14,17);camera.look_at(player.position+Vector3(0,1,0),Vector3.UP)
+    var camera_target:=player.position+Vector3(0,14,17)
+    camera.position=camera.position.lerp(camera_target,1.0-exp(-10.0*delta))
+    camera.look_at(player.position+Vector3(0,1,0),Vector3.UP)
     if boss and is_instance_valid(boss):
         hud.set_boss(str(boss.boss_stats.get("name","CHEFE")),boss.get_hp_ratio(),int(boss.phase))
     elif hud:
@@ -409,3 +413,9 @@ func _process(delta:float)->void:
 
 func _notification(what:int)->void:
     if what==NOTIFICATION_WM_CLOSE_REQUEST:save.force_save_and_flush();get_tree().quit()
+
+func _apply_quality(profile:Dictionary)->void:
+    if perf and get_viewport():
+        perf.apply(get_viewport(),world)
+    if vfx and "max_pool" in vfx:
+        vfx.max_pool=12 if str(profile.get("name",""))=="LOW" else (18 if str(profile.get("name",""))=="MEDIUM" else 24)
