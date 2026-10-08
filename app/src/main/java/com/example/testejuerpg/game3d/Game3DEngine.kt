@@ -202,17 +202,29 @@ class Game3DEngine(private val context: Context) {
             e.hitFlash = max(0f, e.hitFlash - dt)
             if (e.kind == EnemyKind.OVERLOAD_TITAN) {
                 val profile = OfflineBossCatalog.forId(e.bossProfileId)
-                e.phase2 = e.hp <= bossMaxHp * 0.50f
                 e.specialTimer = max(0f, e.specialTimer - dt)
                 e.summonTimer = max(0f, e.summonTimer - dt)
-                if (e.phase2 && e.specialTimer <= 0f) {
-                    e.specialTimer = profile.projectileInterval
-                    repeat(if (profile.id == "storm_behemoth") 3 else 1) { spawnBossProjectile(e) }
-                    spawnBurst(e.pos, 0.25f, rgbColor(profile.aura))
+                val ratio = e.hp / max(1f, bossMaxHp)
+                val newPhase = when {
+                    ratio <= 0.30f -> 3
+                    ratio <= 0.62f -> 2
+                    else -> 1
                 }
-                if (e.phase2 && e.summonTimer <= 0f && enemies.count { !it.dead } < min(9, performanceGovernor.allowedEnemies())) {
-                    e.summonTimer = profile.summonInterval
-                    repeat(if (profile.id == "aether_guardian") 3 else 2) { spawnEnemy() }
+                if (newPhase != e.bossPhase) {
+                    e.bossPhase = newPhase
+                    e.phase2 = newPhase >= 2
+                    screenShake = 0.28f
+                    spawnBurst(e.pos, 0.70f, rgbColor(profile.aura))
+                    vibrate(60)
+                }
+                bossPatternTime += dt
+                if (e.specialTimer <= 0f) {
+                    executeBossPattern(e, profile)
+                }
+                if (e.summonTimer <= 0f && enemies.count { !it.dead } < min(12, performanceGovernor.allowedEnemies())) {
+                    e.summonTimer = max(4.0f, profile.summonInterval * (if (e.bossPhase == 3) 0.58f else if (e.bossPhase == 2) 0.78f else 1f))
+                    val summonCount = if (e.bossPhase == 3) 3 else if (e.bossPhase == 2) 2 else 1
+                    repeat(summonCount) { spawnEnemy() }
                     spawnBurst(e.pos, 0.35f, rgbColor(profile.aura))
                 }
             }
@@ -526,6 +538,111 @@ class Game3DEngine(private val context: Context) {
             false
         )
     }
+
+
+    private fun executeBossPattern(boss: EnemyEntity, profile: OfflineBossDefinition) {
+        val phase = boss.bossPhase
+        val id = profile.id
+        val pattern = when (id) {
+            "overload_titan" -> listOf("fan","charge","nova","fan","summon")
+            "prism_sentinel" -> listOf("cross","fan","nova","cross","teleport")
+            "magnetic_colossus" -> listOf("pull","charge","ring","pull","fan")
+            "inverted_king" -> listOf("teleport","fan","cross","nova","charge")
+            "horizon_titan" -> listOf("beam","rain","charge","fan","beam")
+            "aether_guardian" -> listOf("charge","ring","summon","fan","nova")
+            "void_archon" -> listOf("teleport","fan","void","summon","nova")
+            "storm_behemoth" -> listOf("rain","fan","ring","summon","charge")
+            else -> listOf("fan","charge","nova")
+        }[(floor(bossPatternTime / 2.1f).toInt()) % 5]
+        val damage = profile.projectileDamage * (if (phase == 3) 1.45f else if (phase == 2) 1.18f else 1f)
+        when (pattern) {
+            "fan" -> {
+                val count = if (phase == 3) 5 else if (phase == 2) 3 else 2
+                repeat(count) { index ->
+                    val angle = (index - (count - 1) / 2f) * 0.24f
+                    spawnBossProjectileSpread(boss, damage, angle)
+                }
+                spawnBurst(boss.pos, 0.26f, rgbColor(profile.aura))
+            }
+            "cross" -> {
+                repeat(4) { index -> spawnBossProjectileSpread(boss, damage * 0.86f, index * (Math.PI.toFloat() / 2f)) }
+            }
+            "beam" -> {
+                val target = nearestEnemy(0f)
+                spawnEnemyAreaTelegraph(boss.pos, 3.8f + phase * 0.8f, damage * 0.75f)
+                takeDamage(0f)
+            }
+            "rain" -> {
+                repeat(if (phase == 3) 8 else 5) { index ->
+                    val angle = (index * 1.37f + bossPatternTime) % 6.283f
+                    val r = 3f + (index % 3) * 1.7f
+                    val cx = player.x + cos(angle) * r
+                    val cz = player.z + sin(angle) * r
+                    spawnEnemyAreaTelegraph(V3(cx,0.3f,cz),1.5f + phase * 0.25f,damage * 0.42f)
+                }
+            }
+            "ring" -> {
+                spawnEnemyAreaTelegraph(boss.pos,3.5f + phase * 0.8f,damage * 0.65f)
+                if (phase >= 2) spawnEnemyAreaTelegraph(boss.pos,6.2f + phase * 0.8f,damage * 0.35f)
+            }
+            "nova" -> spawnEnemyAreaTelegraph(player,4.2f + phase * 0.8f,damage * 0.78f)
+            "charge" -> {
+                val dx=player.x-boss.pos.x
+                val dz=player.z-boss.pos.z
+                val d=max(0.001f,sqrt(dx*dx+dz*dz))
+                val distance=if(phase==3)7.0f else 5.0f
+                boss.pos.x += dx/d*distance
+                boss.pos.z += dz/d*distance
+                spawnEnemyAreaTelegraph(boss.pos,2.3f + phase*0.35f,damage*0.72f)
+                screenShake=0.18f
+            }
+            "teleport" -> {
+                val angle=bossPatternTime*0.9f
+                boss.pos.x=player.x+cos(angle)*6.4f
+                boss.pos.z=player.z+sin(angle)*6.4f
+                spawnEnemyAreaTelegraph(boss.pos,2.5f,damage*0.65f)
+            }
+            "pull" -> {
+                val dx=player.x-boss.pos.x
+                val dz=player.z-boss.pos.z
+                val d=max(0.001f,sqrt(dx*dx+dz*dz))
+                if(d>3f){ player.x -= dx/d*min(2.2f*dtSafe(),d-2f); player.z -= dz/d*min(2.2f*dtSafe(),d-2f) }
+                spawnEnemyAreaTelegraph(boss.pos,5.4f,damage*0.35f)
+            }
+            "void" -> {
+                spawnEnemyAreaTelegraph(player,5.2f,damage*0.60f)
+                repeat(2){spawnBossProjectileSpread(boss,damage*0.90f,it*0.55f-0.28f)}
+            }
+            "summon" -> {
+                repeat(if(phase==3)3 else 2){spawnEnemy()}
+                spawnBurst(boss.pos,0.42f,rgbColor(profile.aura))
+            }
+        }
+        boss.specialTimer=max(1.15f,profile.projectileInterval/(if(phase==3)1.65f else if(phase==2)1.25f else 1f))
+    }
+
+    private fun spawnBossProjectileSpread(boss: EnemyEntity, damage: Float, angle: Float) {
+        val dx=player.x-boss.pos.x
+        val dz=player.z-boss.pos.z
+        val distance=max(0.001f,sqrt(dx*dx+dz*dz))
+        val bx=dx/distance
+        val bz=dz/distance
+        val x=bx*cos(angle)-bz*sin(angle)
+        val z=bx*sin(angle)+bz*cos(angle)
+        projectiles += Projectile(
+            V3(boss.pos.x,boss.pos.y,boss.pos.z),
+            V3(x*7.2f,0f,z*7.2f),damage,3.1f,false
+        )
+    }
+
+    private fun spawnEnemyAreaTelegraph(center: V3, radius: Float, damage: Float) {
+        if (player.x-center.x <= radius && player.x-center.x >= -radius && player.z-center.z <= radius && player.z-center.z >= -radius) {
+            takeDamage(damage)
+        }
+        spawnBurst(center, radius*0.12f, floatArrayOf(0.95f,0.34f,0.70f))
+    }
+
+    private fun dtSafe(): Float = (SystemClock.elapsedRealtime() - lastTick).coerceIn(1L,33L) / 1000f
 
     private fun spawnBossProjectile(boss: EnemyEntity) {
         val dx = player.x - boss.pos.x

@@ -67,6 +67,7 @@ data class EnemyEntity(
     var specialTimer: Float = 0f,
     var summonTimer: Float = 10f,
     var phase2: Boolean = false,
+    var bossPhase: Int = 1,
     var dead: Boolean = false,
     var elite: Boolean = false,
     var bossProfileId: String = "overload_titan"

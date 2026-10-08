@@ -482,7 +482,12 @@ class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Renderer {
             drawCube(e.pos.x, s, e.pos.z, s, s * 1.65f, s, bodyColor)
             drawSphere(e.pos.x, s * 2.0f, e.pos.z, s * 0.55f, c)
             if (e.kind == EnemyKind.OVERLOAD_TITAN) {
-                drawTorus(e.pos.x, s * 2.1f, e.pos.z, s * 0.8f, rgb(bossProfile?.aura ?: 0xFF4C8F))
+                val phaseColor = when (e.bossPhase) {
+                    3 -> rgb(0xFF4C72)
+                    2 -> rgb(0xFFB04C)
+                    else -> rgb(bossProfile?.aura ?: 0xFF4C8F)
+                }
+                drawTorus(e.pos.x, s * 2.1f, e.pos.z, s * 0.8f, phaseColor)
                 if (engine.bossWeakPointOpen()) {
                     drawSphere(e.pos.x, s * 2.65f, e.pos.z, 0.22f, rgb(0xFFF07A))
                     drawTorus(e.pos.x, s * 2.65f, e.pos.z, 0.42f, rgb(0xFFF07A))
