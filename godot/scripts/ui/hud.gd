@@ -8,6 +8,7 @@ signal wardrobe_pressed
 signal dodge_pressed
 signal menu_pressed
 signal arsenal_pressed
+signal gadget_pressed
 
 var state: Node
 var title_label: Label
@@ -49,6 +50,7 @@ func _build() -> void:
     _btn(root,"HISTÓRIA",Vector2(945,24),Vector2(170,58)).pressed.connect(func(): story_pressed.emit())
     _btn(root,"ARMÁRIO",Vector2(575,24),Vector2(160,58)).pressed.connect(func(): wardrobe_pressed.emit())
     _btn(root,"ARSENAL",Vector2(745,24),Vector2(160,58)).pressed.connect(func(): arsenal_pressed.emit())
+    _btn(root,"GADGET",Vector2(570,96),Vector2(160,54)).pressed.connect(func(): gadget_pressed.emit())
     _btn(root,"MENU",Vector2(1000,105),Vector2(215,62)).pressed.connect(func(): menu_pressed.emit())
     _btn(root,"ATAQUE",Vector2(1000,515),Vector2(220,105)).pressed.connect(func(): attack_pressed.emit())
     _btn(root,"ESQUIVA",Vector2(1000,625),Vector2(220,65)).pressed.connect(func(): dodge_pressed.emit())
