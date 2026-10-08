@@ -202,6 +202,25 @@ jobs:
           echo "KOTLIN_LINES=$kotlin_lines" >> "$GITHUB_STEP_SUMMARY"
           test "$kotlin_lines" -le 500000
 
+          unreferenced=0
+          while IFS= read -r -d '' file; do
+            base=$(basename "$file" .kt)
+            [ "$base" = "MainActivity" ] && continue
+            declarations=$(grep -Eo '\\b(class|object|interface|enum class|typealias|fun) [A-Za-z_][A-Za-z0-9_]*' "$file" | awk '{print $2}' | sort -u || true)
+            referenced=0
+            for symbol in $declarations; do
+              if grep -RInE --exclude="$(basename "$file")" --include='*.kt' "\\b${symbol}\\b" app/src/main >/dev/null 2>&1; then
+                referenced=1
+                break
+              fi
+            done
+            if [ "$referenced" -eq 0 ]; then
+              echo "Kotlin source has no external declaration reference: $file"
+              unreferenced=1
+            fi
+          done < <(find app/src/main -type f -name '*.kt' -print0)
+          test "$unreferenced" -eq 0
+
       - name: Count meaningful source
         shell: bash
         run: |
