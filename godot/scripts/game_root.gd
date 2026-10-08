@@ -66,6 +66,7 @@ var dead_timer:=0.0
 var damage_buff_time:=0.0
 var damage_buff:=0.0
 var portal_step:=-1
+var gadget_index:=0
 var activity_remaining:=0.0
 var activity_goal:=0
 var activity_progress:=0
@@ -118,6 +119,7 @@ func _ready()->void:
     hud.dodge_pressed.connect(_dodge)
     hud.menu_pressed.connect(_open_operations)
     hud.arsenal_pressed.connect(_cycle_weapon)
+    hud.gadget_pressed.connect(_use_gadget)
 
     operations_menu=OperationsMenuScript.new()
     add_child(operations_menu)
@@ -337,6 +339,40 @@ func _execute_ability(effect:String,power:float,radius:float)->void:
             vfx.skill_burst(self,origin,Color("#ffd65c"))
         _:
             vfx.skill_burst(self,origin,Color.WHITE)
+
+func _use_gadget()->void:
+    var gadgets:=["pulse_grenade","healing_drone","aether_mine","rift_beacon"]
+    if gadgets.is_empty():return
+    var id:=str(gadgets[gadget_index%gadgets.size()])
+    gadget_index+=1
+    if inventory.quantity(id)<=0:
+        hud.set_mode("GADGET • %s x0 • FABRIQUE NA OFICINA"%id)
+        return
+    inventory.game_state.remove_item(id,1)
+    var origin:=player.position
+    match id:
+        "pulse_grenade":
+            for e in enemies.duplicate():
+                if is_instance_valid(e) and e.position.distance_to(origin)<=5.4:combat.hit(e,110.0)
+            vfx.skill_burst(self,origin,Color("#ffbe66"))
+        "healing_drone":
+            var h:=state.get_hunter()
+            h["hp"]=minf(float(h["max_hp"]),float(h["hp"])+90.0+float(h["level"])*4.0)
+            vfx.skill_burst(self,origin,Color("#63f2a4"))
+        "aether_mine":
+            var target:=_nearest(7.0)
+            var mine_pos:=target.position if target else origin
+            for e in enemies.duplicate():
+                if is_instance_valid(e) and e.position.distance_to(mine_pos)<=4.2:combat.hit(e,145.0)
+            if boss and is_instance_valid(boss) and boss.position.distance_to(mine_pos)<=4.2:combat.hit(boss,190.0)
+            vfx.skill_burst(self,mine_pos,Color("#67e8ff"))
+        "rift_beacon":
+            if mode=="EXPEDITION":
+                activity_remaining=maxf(0.0,activity_remaining-15.0)
+                activity_progress+=1
+            vfx.skill_burst(self,origin,Color("#d7a5ff"))
+    hud.set_mode("GADGET • %s • USADO"%id)
+    audio.pickup()
 
 func _spawn_wave(count:int)->void:
     _clear_combat()
