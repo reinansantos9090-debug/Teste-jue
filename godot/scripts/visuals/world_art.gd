@@ -54,13 +54,14 @@ static func _make_rooftop_floor(parent: Node3D) -> void:
         Factory.box(parent, Vector3(52,0.02,0.06), Vector3(0,0.017,float(z*5)), Color("#3a4762"))
 
 static func _make_hq_core(parent: Node3D) -> void:
-    Factory.make_portal(parent, Vector3(0,0,0), Color("#5bdcff"))
+    var portal := Factory.make_portal(parent, Vector3(0,0,0), Color("#5bdcff"))
+    portal.name = "Portal"
     for p in [Vector3(-18,0,-15),Vector3(18,0,-15),Vector3(-18,0,15),Vector3(18,0,15)]:
         var holder := Node3D.new()
         holder.position = p
         parent.add_child(holder)
         Factory.box(holder, Vector3(1.5,2.3,1.5), Vector3(0,1.15,0), Color("#596885"))
-        Factory.sphere(holder, 0.58, Vector3(0,2.48,0), Color("#7ceeff"), 12, 7)
+        Factory.sphere(holder, 0.58, Vector3(0,2.48,0), Color("#7ceeff"))
         var light := OmniLight3D.new()
         light.light_color = Color("#7ceeff")
         light.light_energy = 1.2
@@ -86,7 +87,7 @@ static func _make_crystal_lamps(parent: Node3D) -> void:
         var root := Node3D.new()
         root.position = Vector3(cos(a)*20.0,0,sin(a)*20.0)
         parent.add_child(root)
-        Factory.cylinder(root,0.08,0.12,1.45,Vector3(0,0.72,0),Color("#2b3549"),9,5)
+        Factory.cylinder(root,0.08,0.12,1.45,Vector3(0,0.72,0),Color("#2b3549"))
         Factory.make_crystal(root,Vector3(0,1.55,0),Color("#68ecff"))
 
 static func _make_rooftop_plants(parent: Node3D) -> void:
@@ -96,9 +97,9 @@ static func _make_rooftop_plants(parent: Node3D) -> void:
         var root := Node3D.new()
         root.position = Vector3(cos(a)*r,0,sin(a)*r)
         parent.add_child(root)
-        Factory.cylinder(root,0.08,0.13,0.52,Vector3(0,0.26,0),Color("#6e4939"),9,4)
+        Factory.cylinder(root,0.08,0.13,0.52,Vector3(0,0.26,0),Color("#6e4939"))
         for j in range(3):
-            var leaf := Factory.sphere(root,0.25,Vector3(cos(j*2.1)*0.18,0.68+sin(j)*0.04,sin(j*2.1)*0.18),Color("#56bb83"),9,6)
+            var leaf := Factory.sphere(root,0.25,Vector3(cos(j*2.1)*0.18,0.68+sin(j)*0.04,sin(j*2.1)*0.18),Color("#56bb83"))
             leaf.scale = Vector3(1.15,0.45,0.65)
 
 static func _make_hq_rails(parent: Node3D) -> void:
@@ -158,10 +159,10 @@ static func _make_tree(parent: Node3D, pos: Vector3, accent: Color) -> void:
     root.position = pos
     parent.add_child(root)
     Factory.cylinder(root,0.24,0.38,1.9,Vector3(0,0.95,0),Color("#5f4539"),10,5)
-    var crown := Factory.sphere(root,1.02,Vector3(0,2.05,0),accent.lightened(0.04),12,7)
+    var crown := Factory.sphere(root,1.02,Vector3(0,2.05,0),accent.lightened(0.04))
     crown.scale = Vector3(1.0,1.12,0.95)
-    Factory.sphere(root,0.62,Vector3(-0.66,1.86,0.10),accent,10,6)
-    Factory.sphere(root,0.62,Vector3(0.62,1.88,-0.08),accent.darkened(0.06),10,6)
+    Factory.sphere(root,0.62,Vector3(-0.66,1.86,0.10),accent)
+    Factory.sphere(root,0.62,Vector3(0.62,1.88,-0.08),accent.darkened(0.06))
 
 static func _make_stream(parent: Node3D, pos: Vector3, length: float, color: Color) -> void:
     var root := Node3D.new()
@@ -243,10 +244,10 @@ static func _make_cactus(parent: Node3D, pos: Vector3, accent: Color) -> void:
     var root:=Node3D.new()
     root.position=pos
     parent.add_child(root)
-    Factory.cylinder(root,0.20,0.26,1.55,Vector3(0,0.78,0),Color("#6a995b"),9,5)
-    Factory.cylinder(root,0.11,0.15,0.62,Vector3(-0.42,0.72,0),Color("#6a995b"),9,5).rotation.z=-0.8
-    Factory.cylinder(root,0.11,0.15,0.62,Vector3(0.42,0.48,0),Color("#6a995b"),9,5).rotation.z=0.8
-    Factory.sphere(root,0.14,Vector3(0,1.62,0),accent,9,6)
+    Factory.cylinder(root,0.20,0.26,1.55,Vector3(0,0.78,0),Color("#6a995b"))
+    Factory.cylinder(root,0.11,0.15,0.62,Vector3(-0.42,0.72,0),Color("#6a995b")).rotation.z=-0.8
+    Factory.cylinder(root,0.11,0.15,0.62,Vector3(0.42,0.48,0),Color("#6a995b")).rotation.z=0.8
+    Factory.sphere(root,0.14,Vector3(0,1.62,0),accent)
 
 static func _make_crystal(parent: Node3D, pos: Vector3, color: Color) -> Node3D:
     return Factory.make_crystal(parent,pos,color)

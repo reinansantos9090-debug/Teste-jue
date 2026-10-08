@@ -7,25 +7,75 @@ var game_state: Node
 
 const CHAPTERS := [
     {"title":"Ecos do Portal","lines":[
-        ["Luna","Bem-vindo, caçador. O Portal está instável, mas ainda podemos usá-lo."],
-        ["Manny","Pegue uma arma, equipe um núcleo e volte para o terraço quando precisar."],
-        ["Jax","Se encontrar uma Fenda, respeite o cronômetro. O caos não espera."],
-        ["Luna","Sua primeira missão é limpar a fronteira e descobrir por que as criaturas estão migrando."]
+        ["Luna","Bem-vindo ao terraço. O Portal continua estável o bastante para uma primeira incursão."],
+        ["Manny","Sua arma principal define seu ritmo. Escolha algo confortável antes de atravessar."],
+        ["Jax","Os monstros estão migrando para as áreas habitadas. Precisamos descobrir o motivo."],
+        ["Luna","Derrote as criaturas da fronteira, reúna energia do caos e volte antes que a Fenda cresça."],
+        ["Manny","Você vai encontrar núcleos de melhoria para dano, crítico, velocidade, cura, saúde e esquiva."],
+        ["Jax","Seu progresso é local. O diário e as recompensas ficam salvos no dispositivo."]
+    ]},
+    {"title":"Fronteira Esmeralda","lines":[
+        ["Luna","A vegetação reage ao fluxo do Portal. Há mais criaturas aqui do que ontem."],
+        ["Manny","O primeiro contrato é limpar a infestação e procurar rastros luminosos."],
+        ["Jax","Os Perseguidores Neon seguem uma frequência que não reconhecemos."],
+        ["Luna","Isso não parece uma invasão comum. Alguém está atraindo o caos."],
+        ["Manny","Avance pelo mapa, complete os objetivos e desbloqueie novas rotas."]
     ]},
     {"title":"A Floresta Cristalina","lines":[
-        ["Manny","Os cristais estão pulsando. Isso normalmente significa que alguma coisa acordou."],
-        ["Jax","Há sinais de um predador maior escondido além da mata."],
-        ["Luna","Cada monstro derrotado deixa uma pista. Continue seguindo os ecos."]
+        ["Jax","Os cristais estão pulsando em sincronia com o Portal."],
+        ["Luna","Há registros de expedições antigas neste lugar. Talvez encontremos uma pista."],
+        ["Manny","Fendas menores estão aparecendo perto das ruínas."],
+        ["Jax","Uma criatura enorme passou por aqui. O impacto deixou marcas por toda a floresta."],
+        ["Luna","É hora de preparar uma build para algo maior."]
+    ]},
+    {"title":"Ruínas do Céu","lines":[
+        ["Manny","A energia desta região altera gravidade, alcance e movimento."],
+        ["Jax","Use a esquiva para atravessar ataques e combine habilidades em sequência."],
+        ["Luna","Os antigos chamavam esta região de Horizonte Partido."],
+        ["Manny","Há três sinais distintos. Um deles parece uma porta para uma arena."],
+        ["Jax","Guarde essa descoberta para quando seu equipamento estiver pronto."]
+    ]},
+    {"title":"Cânions de Sucata","lines":[
+        ["Luna","As máquinas abandonadas estão sendo reativadas pelo caos."],
+        ["Manny","Colete placas, células de energia e fibras para fabricar equipamentos."],
+        ["Jax","Os Golems protegem alguma coisa no centro do cânion."],
+        ["Luna","Talvez seja um núcleo antigo, anterior ao sistema atual de Portais."],
+        ["Manny","O próximo contrato vai exigir precisão e mobilidade."]
     ]},
     {"title":"O Domo da Fenda","lines":[
-        ["Jax","O núcleo do Domo está carregando energia demais."],
-        ["Manny","O chefe altera a arena quando muda de fase. Não fique parado."],
-        ["Luna","Esta batalha pode decidir o destino da Fronteira Esmeralda."]
+        ["Jax","A arena está selada. O núcleo do Domo está carregando."],
+        ["Manny","O chefe muda de comportamento quando perde metade da energia vital."],
+        ["Luna","Quando a segunda fase começar, mantenha distância e use sua esquiva."],
+        ["Jax","Os lacaios surgirão para pressionar você. Não deixe a arena ficar cheia."],
+        ["Luna","Esta vitória pode revelar quem iniciou a migração."]
     ]},
-    {"title":"Horizonte Partido","lines":[
-        ["Luna","Os portais estão conectando regiões que nunca deveriam se tocar."],
-        ["Jax","Precisamos de um caçador capaz de cruzar todos os biomas."],
-        ["Manny","E de equipamento preparado para qualquer mutação do caos."]
+    {"title":"Titãs do Horizonte","lines":[
+        ["Manny","O Titã não era o único guardião. Existem outros ecos adormecidos."],
+        ["Jax","Cada chefe guarda uma parte do mapa que ainda não conseguimos acessar."],
+        ["Luna","O Portal está abrindo rotas diferentes conforme você explora."],
+        ["Manny","Combine arma, habilidades e núcleos antes de enfrentar um novo titã."],
+        ["Jax","A próxima expedição será a mais longa até agora."]
+    ]},
+    {"title":"A Queda dos Portais","lines":[
+        ["Luna","Os Portais começaram a se sobrepor. As fronteiras estão desaparecendo."],
+        ["Jax","Rifts instáveis aceleram os monstros e alteram suas rotas."],
+        ["Manny","Use as recompensas das expedições para maximizar seus núcleos."],
+        ["Luna","Seu diário registra cada contrato, cada chefe e cada descoberta."],
+        ["Jax","Agora não estamos mais investigando uma crise. Estamos tentando impedir uma."]
+    ]},
+    {"title":"Arquivo do Caçador","lines":[
+        ["Manny","Seu histórico mostra as batalhas que definiram esta jornada."],
+        ["Luna","As primeiras missões pareciam pequenas, mas cada uma revelou uma peça do quebra-cabeça."],
+        ["Jax","Você já conhece biomas, armas, fendas e padrões dos chefes."],
+        ["Manny","Ainda existem estilos, equipamentos e desafios opcionais no terraço."],
+        ["Luna","A campanha principal chega ao seu primeiro encerramento. O mundo continua offline."]
+    ]},
+    {"title":"Além do Eco","lines":[
+        ["Jax","Um último sinal surgiu além do limite do mapa."],
+        ["Luna","Não é um Portal comum. A frequência parece responder às escolhas do caçador."],
+        ["Manny","Talvez seja a chave para o próximo capítulo."],
+        ["Luna","Salve seu progresso, prepare seu equipamento e atravesse quando estiver pronto."],
+        ["Jax","Aetheria ainda tem ecos para revelar."]
     ]}
 ]
 

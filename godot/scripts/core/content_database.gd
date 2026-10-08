@@ -1,4 +1,7 @@
 extends Node
+
+const VisualCatalog = preload("res://scripts/gameplay/visual_content_catalog.gd")
+var generated_catalog: Node
 ## Original content catalog for the offline Aetheria action RPG.
 ## It follows the PDF's combat/crafting/quest structure and the public mo.co
 ## categories without copying proprietary names, art, code or assets.
@@ -90,3 +93,11 @@ const RECIPES := [
     {"id":"aether_blade","name":"Lâmina Aether","requires":{"scrap_plate":4,"power_cell":2,"aether_core":3},"result":{"aether_lance":1}},
     {"id":"rift_beacon","name":"Sinalizador de Fenda","requires":{"aether_core":6,"plasma_fiber":3},"result":{"rift_beacon":1}}
 ]
+
+func _ready() -> void:
+    generated_catalog = VisualCatalog.new()
+    add_child(generated_catalog)
+    for id in generated_catalog.weapons.keys():
+        WEAPONS[id] = generated_catalog.weapons[id]
+    for id in generated_catalog.abilities.keys():
+        ABILITIES[id] = generated_catalog.abilities[id]

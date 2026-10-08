@@ -9,8 +9,7 @@ uniform float emission_strength : hint_range(0.0,4.0) = 0.0;
 
 void fragment(){
     ALBEDO = base_color.rgb;
-    EMISSION = emission_color.rgb;
-    EMISSION_ENERGY = emission_strength;
+    EMISSION = emission_color.rgb * emission_strength;
 }
 
 void light(){

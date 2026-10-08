@@ -65,7 +65,7 @@ func _ready()->void:
     inventory=InventoryScript.new();add_child(inventory);inventory.setup(state)
     audio=AudioScript.new();add_child(audio)
     combat=CombatScript.new();add_child(combat);combat.setup(state,audio)
-    player=Node3D.new();player.name="Hunter";add_child(player)
+    player=HunterAvatar.new();player.name="Hunter";add_child(player)
     _set_player()
     camera=Camera3D.new();camera.fov=48.0;add_child(camera);camera.current=true
     hud=HudScript.new();add_child(hud);hud.setup(state)

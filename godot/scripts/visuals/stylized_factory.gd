@@ -121,6 +121,27 @@ static func make_portal(parent: Node3D, pos: Vector3, accent: Color) -> Node3D:
     root.add_child(light)
     return root
 
+static func make_crystal(parent: Node3D, pos: Vector3, color: Color) -> Node3D:
+    var root := Node3D.new()
+    root.name = "Crystal"
+    root.position = pos
+    parent.add_child(root)
+    var mesh_instance := MeshInstance3D.new()
+    var mesh := PrismMesh.new()
+    mesh.size = Vector3(0.70,1.60,0.70)
+    mesh.material = mat(color,0.08,0.25,color)
+    mesh_instance.mesh = mesh
+    mesh_instance.rotation_degrees = Vector3(0,17,0)
+    root.add_child(mesh_instance)
+    sphere(root,0.12,Vector3(0,0.86,0),Color("#f4feff"))
+    var light := OmniLight3D.new()
+    light.light_color = color
+    light.light_energy = 0.55
+    light.omni_range = 2.4
+    light.position = Vector3(0,0.75,0)
+    root.add_child(light)
+    return root
+
 static func make_weapon_icon(parent: Node3D, kind: String, color: Color) -> Node3D:
     var root := Node3D.new()
     parent.add_child(root)

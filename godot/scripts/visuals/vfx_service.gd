@@ -9,7 +9,6 @@ func burst(parent:Node3D,pos:Vector3,color:=Color("#ffe16a"),amount:=10.0)->void
     var fx:=_take()
     fx.position=pos
     fx.amount=int(amount)
-    fx.modulate=color
     parent.add_child(fx)
     fx.emitting=true
     get_tree().create_timer(0.38).timeout.connect(func():_release(fx))
