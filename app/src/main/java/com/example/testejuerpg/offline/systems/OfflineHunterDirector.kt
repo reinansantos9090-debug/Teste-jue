@@ -1,5 +1,7 @@
 package com.example.testejuerpg.offline.systems
 
+import com.example.testejuerpg.offline.OfflineCraftingRules
+
 import android.content.SharedPreferences
 
 import com.example.testejuerpg.offline.OfflineCoreType
@@ -347,8 +349,7 @@ class OfflineHunterDirector(seed: Int = 2025) {
 
     fun craft(recipeId: String): Boolean {
         val recipe = recipes.firstOrNull { it.id == recipeId } ?: return false
-        if (hunter.careerLevel < recipe.unlockLevel) return false
-        if (!recipe.ingredients.all { (materials[it.key] ?: 0) >= it.value }) return false
+        if (!OfflineCraftingRules.canCraft(recipe, hunter.careerLevel, materials)) return false
         recipe.ingredients.forEach { (id, value) ->
             materials[id] = max(0, (materials[id] ?: 0) - value)
         }
