@@ -17,13 +17,15 @@ const Factory=preload("res://scripts/visuals/stylized_factory.gd")
 const HunterAvatar=preload("res://scripts/visuals/hunter_avatar.gd")
 const VfxScript=preload("res://scripts/visuals/vfx_service.gd")
 const CutsceneScript=preload("res://scripts/gameplay/cutscene_service.gd")
-const VisualCatalogScript=preload("res://scripts/gameplay/visual_content_catalog.gd")
 const DailyScript=preload("res://scripts/gameplay/daily_service.gd")
 const CoreScript=preload("res://scripts/gameplay/core_service.gd")
 const ProgressionScript=preload("res://scripts/gameplay/progression_service.gd")
 const WardrobeScript=preload("res://scripts/gameplay/wardrobe_service.gd")
 const PortalScript=preload("res://scripts/gameplay/portal_service.gd")
 const DirectorScript=preload("res://scripts/gameplay/offline_director.gd")
+const MapScript=preload("res://scripts/world/map_service.gd")
+const LootScript=preload("res://scripts/gameplay/loot_service.gd")
+const SkillTreeScript=preload("res://scripts/gameplay/skill_tree_service.gd")
 const OperationsMenuScript=preload("res://scripts/ui/activity_menu.gd")
 
 var state:Node
@@ -40,13 +42,15 @@ var audio:Node
 var hud:CanvasLayer
 var vfx:Node
 var cutscene:CanvasLayer
-var visual_catalog:Node
 var daily:Node
 var cores:Node
 var progression:Node
 var wardrobe:Node
 var portal_service:Node
 var director:Node
+var maps:Node
+var loot:Node
+var skill_tree:Node
 var operations_menu:CanvasLayer
 var player:Node3D
 var camera:Camera3D
@@ -72,11 +76,13 @@ func _ready()->void:
     save=SaveScript.new();add_child(save);save.setup(state);save.load_now()
     perf=PerfScript.new();add_child(perf)
     perf.quality_changed.connect(_apply_quality)
-    world=WorldScript.new();add_child(world);world.setup(self,content)
+    maps=MapScript.new();add_child(maps)
+    loot=LootScript.new();add_child(loot);loot.setup(state,content)
+    skill_tree=SkillTreeScript.new();add_child(skill_tree);skill_tree.setup(state,content)
+    world=WorldScript.new();add_child(world);world.setup(self,content,maps)
     quests=QuestScript.new();add_child(quests);quests.setup(state,content)
     story=StoryScript.new();add_child(story);story.setup(state)
     events=EventScript.new();add_child(events);events.setup(state,content)
-    visual_catalog=VisualCatalogScript.new();add_child(visual_catalog)
     daily=DailyScript.new();add_child(daily);daily.setup(state)
     cores=CoreScript.new();add_child(cores);cores.setup(state,content)
     progression=ProgressionScript.new();add_child(progression);progression.setup(state)
@@ -186,6 +192,9 @@ func _run_operation(action_id:String)->void:
                 break
         "cores":
             hud.set_mode("NÚCLEOS • "+str(state.data["cores"]["equipped"].size())+" equipados / "+str(state.data["cores"]["owned"].size())+" possuídos")
+        "skills":
+            var result:=skill_tree.unlock_next_available()
+            hud.set_mode("ÁRVORE • "+result)
         "craft":
             var made:=false
             for recipe in content.RECIPES:
@@ -225,39 +234,73 @@ func _attack()->void:
 
 func _ability(i:int)->void:
     if dead_timer>0.0 or not skills[i]:return
+    var weapon_id:=str(state.data["loadout"]["weapon"])
+    var weapon:Dictionary=content.WEAPONS.get(weapon_id,{})
+    var weapon_abilities:Array=weapon.get("abilities",["volt_dash","arc_burst"])
+    var ability_index:=clampi(i,0,weapon_abilities.size()-1)
     var ids=[str(state.data["loadout"]["ability_1"]),str(state.data["loadout"]["ability_2"]),str(state.data["loadout"]["ability_3"])]
-    var a=content.ABILITIES.get(ids[i],content.ABILITIES["shock_dash"])
+    if ability_index<weapon_abilities.size(): ids[i]=str(weapon_abilities[ability_index])
+    var a=content.ABILITIES.get(ids[i],content.ABILITIES["volt_dash"])
     var h=state.get_hunter()
     if float(h["energy"])<float(a["energy"]):return
     skills[i]=false;h["energy"]=float(h["energy"])-float(a["energy"])
     daily.add("daily_skill",1)
     if player.has_method("play_skill"):player.play_skill(i)
-    if i==0:
-        var n=_nearest(12.0)
-        if n:
-            player.position=n.position+Vector3(0,0,1.4)
-            combat.hit(n,50.0+float(h["level"])*4.0)
-        vfx.skill_burst(self,player.position,Color("#66eaff"))
-    elif i==1:
-        for e in enemies.duplicate():
-            if is_instance_valid(e) and e.position.distance_to(player.position)<5.5:combat.hit(e,72.0+float(h["level"])*5.0)
-        vfx.skill_burst(self,player.position,Color("#b990ff"))
-    else:
-        h["hp"]=minf(float(h["max_hp"]),float(h["hp"])+42.0)
-        vfx.skill_burst(self,player.position,Color("#63f2a4"))
+    _execute_ability(str(a.get("effect","area")),float(a.get("power",1.0)),float(a.get("radius",4.0)))
     get_tree().create_timer(float(a["cooldown"])*(1.0-_core("cooldown"))).timeout.connect(func():skills[i]=true)
+
+func _execute_ability(effect:String,power:float,radius:float)->void:
+    var origin:=player.position
+    match effect:
+        "dash":
+            var n:=_nearest(radius+7.0)
+            if n:
+                var dir:Vector3=(n.position-player.position).normalized()
+                player.position=n.position-dir*1.8
+                combat.hit(n,55.0*power)
+            vfx.skill_burst(self,origin,Color("#66eaff"))
+        "area","pull_area":
+            for e in enemies.duplicate():
+                if is_instance_valid(e) and e.position.distance_to(origin)<=radius:
+                    combat.hit(e,48.0*power)
+                    if effect=="pull_area":
+                        e.position=e.position.lerp(origin,0.18)
+            vfx.skill_burst(self,origin,Color("#b990ff"))
+        "multi_projectile","chain","beam":
+            var hits:=0
+            for e in enemies.duplicate():
+                if is_instance_valid(e) and e.position.distance_to(origin)<=radius:
+                    combat.hit(e,43.0*power)
+                    hits+=1
+                    if hits>=6:break
+            if boss and is_instance_valid(boss) and boss.position.distance_to(origin)<=radius:combat.hit(boss,72.0*power)
+            vfx.skill_burst(self,origin,Color("#7defff"))
+        "barrier":
+            invulnerability=maxf(invulnerability,2.5)
+            vfx.skill_burst(self,origin,Color("#d4a7ff"))
+        "buff_damage":
+            state.data["hunter"]["damage_buff"]=maxf(float(state.data["hunter"].get("damage_buff",0.0)),power)
+            vfx.skill_burst(self,origin,Color("#ffd65c"))
+        _:
+            vfx.skill_burst(self,origin,Color("#ffffff"))
 
 func _spawn_wave(count:int)->void:
     _clear_combat()
-    for i in mini(count,perf.max_enemies()):_spawn_enemy(i)
+    var map_id:=str(portal_service.destination)
+    var pool:Array=maps.enemy_pool(map_id)
+    for i in mini(count,perf.max_enemies()):
+        var kind:="aether_slime"
+        if not pool.is_empty():kind=str(pool[i%pool.size()])
+        _spawn_enemy(i,kind)
 
 func _spawn_enemy(i:int,id:="")->void:
-    var pool=["slime","slime","stalker","chaos_moth","rift_hound","scrap_golem","crystal_guard","mire_colossus"]
-    var kind=id if not id.is_empty() else pool[i%pool.size()]
+    var pool:=maps.enemy_pool(str(portal_service.destination))
+    if pool.is_empty():pool=content.MONSTERS.keys()
+    var kind:=id if not id.is_empty() else str(pool[i%pool.size()])
     var enemy_scene:PackedScene=load("res://scenes/enemies/Enemy.tscn")
     var e:Node3D=enemy_scene.instantiate() if enemy_scene else EnemyScript.new()
     add_child(e);e.position=player.position+Vector3(cos(i*0.9),0,sin(i*0.9))*float(8+i%4*2)
-    e.configure(kind,player,content)
+    e.configure(kind,player,content,maps.difficulty(str(portal_service.destination)))
     if kind=="slime":
         e.attach_visual(Factory.make_slime(e,Color("#43e97c")))
     elif kind=="scrap_golem":
@@ -278,7 +321,7 @@ func _spawn_boss(id:String)->void:
     var boss_scene:PackedScene=load("res://scenes/bosses/PhaseBoss.tscn")
     var b:Node3D=boss_scene.instantiate() if boss_scene else BossScript.new()
     add_child(b);b.position=player.position+Vector3(0,0,-10)
-    b.configure_boss(id,player,content);b.attach_visual(Factory.make_golem(b,Color("#7d5ce8"),Color("#ffd86b")))
+    b.configure_boss(id,player,content,maps.difficulty(str(portal_service.destination)));b.attach_visual(Factory.make_golem(b,Color("#7d5ce8"),Color("#ffd86b")))
     b.phase_changed.connect(func(p:int):
         hud.set_mode("CHEFE • FASE %d" % p)
         if is_instance_valid(b):b.scale=Vector3.ONE*(1.0 if p==1 else 1.14)
@@ -292,10 +335,12 @@ func _shot(o:Vector3,t:Vector3,d:float)->void:
     p.set_meta("v",(t-o).normalized()*8.0);p.set_meta("d",d);shots.append(p)
 
 func _enemy_down(e:Node3D,x:int)->void:
-    state.increment_stat("kills");state.add_xp(x);state.add_item("aether_core",1)
+    state.increment_stat("kills");progression.award_xp(x)
+    var rolled:Dictionary=loot.roll(str(e.monster_id),str(portal_service.destination),int(state.get_hunter()["level"]),events.multiplier())
+    inventory.record_loot(rolled)
     daily.add("daily_kills",1);director.record_kill()
     if is_instance_valid(e):vfx.death(self,e.position,Color("#a7d7ff"))
-    quests.add_progress("hunt_01");quests.add_progress("hunt_02");quests.add_progress("hunt_03");e.queue_free()
+    quests.add_kill(str(e.monster_id),1);e.queue_free()
 
 func _boss_down(b:Node3D,x:int)->void:
     state.increment_stat("bosses");progression.award_xp(roundi(float(x)*events.multiplier()));quests.add_progress("boss_01")
