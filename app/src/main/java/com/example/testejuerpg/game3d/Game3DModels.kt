@@ -51,7 +51,7 @@ data class WeaponPreset(
     val tint: Int
 )
 
-private val WEAPONS: List<WeaponPreset> = OfflineWeaponCatalog.all.map {
+internal val WEAPONS: List<WeaponPreset> = OfflineWeaponCatalog.all.map {
     WeaponPreset(it.id, it.name, it.role, it.archetype, it.damage, it.range, it.cooldown, it.skill1, it.skill2, it.skill3, it.tint)
 }
 
