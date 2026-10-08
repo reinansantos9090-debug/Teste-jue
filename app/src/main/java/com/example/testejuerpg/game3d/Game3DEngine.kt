@@ -34,6 +34,7 @@ import com.example.testejuerpg.offline.systems.OfflineBiomeCatalog
 import com.example.testejuerpg.offline.systems.OfflineVisualCatalog
 import com.example.testejuerpg.offline.systems.OfflineWeaponCatalog
 import com.example.testejuerpg.offline.systems.OfflineBossCatalog
+import com.example.testejuerpg.offline.systems.OfflineBossDefinition
 import com.example.testejuerpg.offline.systems.OfflineMapRuntime
 import com.example.testejuerpg.offline.systems.OfflineSquadCatalog
 import com.example.testejuerpg.offline.systems.OfflineHistoryArchive
