@@ -35,7 +35,7 @@ func configure(id:String,target_node:Node3D,database:Node,scale:=1.0)->void:
     max_hp=float(stats.get("hp",50.0))*difficulty
     hp=max_hp
     base_speed=float(stats.get("speed",2.0))
-    rng.seed=abs(hash("%s:%s"%(id,get_instance_id())))
+    rng.seed=abs(hash("%s:%s" % [id,get_instance_id()]))
     attack_timer=rng.randf_range(0.1,0.7)
     special_timer=rng.randf_range(1.0,3.0)
 
