@@ -65,7 +65,7 @@ func remove_item(id: String, amount: int) -> bool:
 
 func add_xp(amount: int) -> int:
     var gained := 0
-    var hunter := data["hunter"]
+    var hunter: Dictionary = data["hunter"]
     hunter["xp"] = int(hunter["xp"]) + amount
     while int(hunter["xp"]) >= int(hunter["xp_to_next"]):
         hunter["xp"] = int(hunter["xp"]) - int(hunter["xp_to_next"])
