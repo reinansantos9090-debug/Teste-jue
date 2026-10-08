@@ -5,107 +5,88 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-jobs:
-  cancel-older-runs:
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-    steps:
-      - name: Cancel older queued or running workflow runs
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CURRENT_RUN: ${{ github.run_id }}
-          WORKFLOW_NAME: ${{ github.workflow }}
-          BRANCH_NAME: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          gh run list --repo "$GITHUB_REPOSITORY" --workflow "$WORKFLOW_NAME" --branch "$BRANCH_NAME" --limit 100 --json databaseId,status --jq ".[] | select(.databaseId != $CURRENT_RUN) | select(.status == \"queued\" or .status == \"in_progress\" or .status == \"waiting\" or .status == \"pending\") | .databaseId" |
-          while read -r run_id; do
-            [ -z "$run_id" ] && continue
-            gh run cancel "$run_id" --repo "$GITHUB_REPOSITORY" || true
-          done
+# A new run for the same branch immediately supersedes an older run.
+# This cancels queued/pending/running executions before they waste CI time.
+concurrency:
+  group: aetheria-main-${{ github.ref }}
+  cancel-in-progress: true
 
-  generate-source-catalog:
-    needs: cancel-older-runs
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  cleanup-retired-sources:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
-      - name: Ensure at least 3 million source lines
+
+      - name: Remove retired generated sources
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import pathlib
-          target = 3_050_000
-          exts = {".kt",".kts",".java",".gradle",".py",".gd"}
-          total = 0
-          for path in pathlib.Path(".").rglob("*"):
-              if path.is_file() and ".git" not in path.parts and path.suffix in exts:
-                  with path.open("r", encoding="utf-8", errors="ignore") as fh:
-                      total += sum(1 for _ in fh)
-          needed = max(0, target - total)
-          root = pathlib.Path("generated_catalog")
-          root.mkdir(parents=True, exist_ok=True)
-          chunk = 50_000
-          index = 1
-          while needed > 0:
-              count = min(chunk, needed)
-              path = root / f"OfflineSourceCatalog_{index:03d}.gd"
-              with path.open("w", encoding="utf-8") as fh:
-                  fh.write("extends RefCounted\n")
-                  fh.write("## Offline generated catalog; not loaded by the runtime.\n")
-                  for i in range(count - 2):
-                      value = ((index * 7919) + (i * 104729)) % 999983
-                      fh.write(f"const ENTRY_{i+1:06d} = \"catalog_{index:03d}_{i+1:06d}_{value}\"\n")
-              needed -= count
-              index += 1
-          print(f"Existing lines: {total}")
-          print(f"Generated lines: {max(0, target-total)}")
-          PY
-      - name: Commit generated catalog
+          rm -rf tools/sourcebank generated_catalog offline/catalog
+          find . -type d -name .gradle -prune -exec rm -rf {} +
+          while IFS= read -r file; do
+            git rm --cached --ignore-unmatch -- "$file" || true
+          done < <(git ls-files | grep -E '(^|/)(tools/sourcebank/|generated_catalog/|offline/catalog/|\.gradle/)' || true)
+
+      - name: Verify app/src has no retired-source references
         shell: bash
         run: |
           set -euo pipefail
+          if grep -RInE 'tools/sourcebank|generated_catalog|offline/catalog' app/src; then
+            echo "Forbidden retired-source reference found under app/src."
+            exit 1
+          fi
+          echo "No retired-source references found under app/src."
+
+      - name: Commit cleanup when needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A .gitignore
+          if git diff --cached --quiet; then
+            echo "Repository already clean."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git status --porcelain | grep -q '^?? generated_catalog/'; then
-            git add generated_catalog
-            git commit -m "chore: expand offline source catalog to 3m lines [skip ci]"
-            git push origin HEAD:main
-          else
-            echo "3 million source-line target already satisfied."
-          fi
+          git commit -m "chore: remove retired generated source catalogs [skip ci]"
+          git push origin HEAD:main
 
   build:
-    needs: [cancel-older-runs, generate-source-catalog]
+    needs: cleanup-retired-sources
     concurrency:
-      group: android-3d-build-${{ github.ref }}
+      group: aetheria-build-${{ github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
     permissions:
       actions: write
       contents: read
     steps:
-      - name: Checkout latest main after catalog generation
+      - name: Checkout latest main
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
           cache: gradle
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
+
       - name: Set up Godot 4.7.2
         shell: bash
         run: |
@@ -116,6 +97,7 @@ jobs:
           GODOT_BIN="$RUNNER_TEMP/godot/Godot_v4.7.2-stable_linux.x86_64"
           chmod +x "$GODOT_BIN"
           echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+
       - name: Install Godot Android export templates
         shell: bash
         run: |
@@ -131,8 +113,12 @@ jobs:
           test -n "$release_template"
           cp "$debug_template" "$HOME/.local/share/godot/export_templates/4.7.2.stable/android_debug.apk"
           cp "$release_template" "$HOME/.local/share/godot/export_templates/4.7.2.stable/android_release.apk"
-          test -f "$HOME/.local/share/godot/export_templates/4.7.2.stable/android_debug.apk"
-          test -f "$HOME/.local/share/godot/export_templates/4.7.2.stable/android_release.apk"
+
+      - name: Validate no retired source references
+        run: |
+          set -e
+          ! grep -RInE 'tools/sourcebank|generated_catalog|offline/catalog' app/src
+
       - name: Validate Godot project
         shell: bash
         run: |
@@ -144,8 +130,11 @@ jobs:
           test -f godot/scripts/game_root.gd
           test -f godot/scripts/core/content_database.gd
           test -f godot/scripts/gameplay/combat_service.gd
+          test -f godot/scripts/tests/../core/game_state.gd || true
+          "$GODOT_BIN" --headless --path godot --script tests/test_runner.gd
           "$GODOT_BIN" --headless --path godot --export-debug "Android" "$RUNNER_TEMP/aetheria-echoes-godot-debug.apk"
-      - name: Count source lines
+
+      - name: Count meaningful source
         shell: bash
         run: |
           set -euo pipefail
@@ -153,9 +142,10 @@ jobs:
           while IFS= read -r -d '' file; do
             lines=$(wc -l < "$file")
             total=$((total + lines))
-          done < <(find . -type f \( -name '*.kt' -o -name '*.kts' -o -name '*.java' -o -name '*.gradle' -o -name '*.py' -o -name '*.gd' \) -not -path './.git/*' -print0)
-          echo "TOTAL_SOURCE_LINES=$total"
-          echo "TOTAL_SOURCE_LINES=$total" >> "$GITHUB_STEP_SUMMARY"
+          done < <(find app/src godot -type f \( -name '*.kt' -o -name '*.kts' -o -name '*.java' -o -name '*.gd' \) -print0)
+          echo "MEANINGFUL_SOURCE_LINES=$total" >> "$GITHUB_STEP_SUMMARY"
+          echo "Meaningful source lines: $total"
+
       - name: Publish Godot APK
         uses: actions/upload-artifact@v4
         with:
@@ -163,8 +153,14 @@ jobs:
           path: ${{ runner.temp }}/aetheria-echoes-godot-debug.apk
           if-no-files-found: error
           retention-days: 14
-      - name: Build Android host APK
-        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Build Android host with Gradle wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x ./gradlew
+          ./gradlew :app:assembleDebug --stacktrace
+
       - name: Publish Android host APK
         uses: actions/upload-artifact@v4
         with:
