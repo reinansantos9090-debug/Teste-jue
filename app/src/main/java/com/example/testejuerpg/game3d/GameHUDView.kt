@@ -49,7 +49,6 @@ class GameHUDView(context: Context, private val engine: Game3DEngine) : View(con
     private var joystickDy = 0f
 
     init {
-        setLayerType(View.LAYER_TYPE_SOFTWARE, null)
     }
 
     override fun onDraw(canvas: Canvas) {
