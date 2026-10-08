@@ -228,7 +228,9 @@ func _run_operation(action_id:String)->void:
         "cores":
             hud.set_mode("NÚCLEOS • "+cores.summary())
         "skills":
-            hud.set_mode("ÁRVORE • "+skill_tree.summary())
+            var unlocked_skill:=skill_tree.unlock_next_available()
+            hud.set_mode("ÁRVORE • "+unlocked_skill+" • "+skill_tree.summary())
+            audio.level_up()
         "craft":
             var crafted:=false
             for recipe in content.RECIPES:
