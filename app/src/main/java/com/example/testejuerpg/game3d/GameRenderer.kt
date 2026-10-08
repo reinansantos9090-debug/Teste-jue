@@ -437,6 +437,41 @@ class GameRenderer(private val engine: Game3DEngine) : GLSurfaceView.Renderer {
         drawCylinder(e.pos.x, 0.07f, e.pos.z, e.kind.radius * 0.9f, 0.025f, e.kind.radius * 0.7f, floatArrayOf(0.07f, 0.09f, 0.12f))
         if (e.kind == EnemyKind.AETHER_SLIME) {
             drawSphere(e.pos.x, 0.58f, e.pos.z, if (e.elite) 0.9f else 0.68f, if (e.hitFlash > 0f) floatArrayOf(1f, 1f, 1f) else c)
+        } else if (e.kind == EnemyKind.THORN_LING) {
+            drawSphere(e.pos.x,0.58f,e.pos.z,0.62f,c)
+            for(i in 0..2) {
+                val a=i*2.094f
+                drawCube(e.pos.x+cos(a)*0.48f,0.72f,e.pos.z+sin(a)*0.48f,0.12f,0.48f,0.12f,c)
+            }
+        } else if (e.kind == EnemyKind.SAND_BOMBER) {
+            drawCube(e.pos.x,0.78f,e.pos.z,0.78f,1.12f,0.78f,c)
+            drawSphere(e.pos.x,1.55f,e.pos.z,0.34f,floatArrayOf(1f,0.68f,0.25f))
+            drawTorus(e.pos.x,1.58f,e.pos.z,0.52f,c)
+        } else if (e.kind == EnemyKind.PHASE_MOTH) {
+            drawSphere(e.pos.x,0.94f,e.pos.z,0.36f,c)
+            drawSphere(e.pos.x-0.42f,1.08f,e.pos.z,0.48f,c)
+            drawSphere(e.pos.x+0.42f,1.08f,e.pos.z,0.48f,c)
+            drawTorus(e.pos.x,1.05f,e.pos.z,0.62f,rgb(0x9C7BFF))
+        } else if (e.kind == EnemyKind.MOSS_MENDER) {
+            drawCylinder(e.pos.x,0.62f,e.pos.z,0.42f,1.00f,c)
+            drawSphere(e.pos.x,1.33f,e.pos.z,0.42f,c)
+            drawTorus(e.pos.x,1.45f,e.pos.z,0.52f,rgb(0x72FF9A))
+        } else if (e.kind == EnemyKind.CRYSTAL_SENTINEL) {
+            drawCube(e.pos.x,1.05f,e.pos.z,1.20f,1.85f,1.00f,if(e.hitFlash>0f) floatArrayOf(1f,1f,1f) else c)
+            drawTorus(e.pos.x,1.16f,e.pos.z,1.02f,rgb(0xB9FAFF))
+            drawSphere(e.pos.x,2.10f,e.pos.z,0.34f,rgb(0xEFFFFF))
+        } else if (e.kind == EnemyKind.RIFT_ASSASSIN) {
+            drawCylinder(e.pos.x,0.70f,e.pos.z,0.38f,1.10f,c)
+            drawCube(e.pos.x,1.53f,e.pos.z,0.72f,0.12f,0.72f,rgb(0xD8B8FF))
+            drawTorus(e.pos.x,1.0f,e.pos.z,0.54f,c)
+        } else if (e.kind == EnemyKind.MAGNET_TURRET) {
+            drawCylinder(e.pos.x,0.55f,e.pos.z,0.58f,0.88f,c)
+            drawCube(e.pos.x,1.12f,e.pos.z,0.24f,0.76f,0.24f,rgb(0xF7B45F))
+            drawTorus(e.pos.x,1.15f,e.pos.z,0.68f,rgb(0xFF7A4F))
+        } else if (e.kind == EnemyKind.ECHO_SPLITTER) {
+            drawSphere(e.pos.x,0.72f,e.pos.z,0.70f,c)
+            drawSphere(e.pos.x-0.24f,0.86f,e.pos.z-0.55f,0.10f,floatArrayOf(1f,1f,1f))
+            drawSphere(e.pos.x+0.24f,0.86f,e.pos.z-0.55f,0.10f,floatArrayOf(1f,1f,1f))
         } else if (e.kind == EnemyKind.NEON_STALKER) {
             drawCylinder(e.pos.x, 0.9f, e.pos.z, 0.44f, 1.3f, if (e.hitFlash > 0f) floatArrayOf(1f, 1f, 1f) else c)
             drawSphere(e.pos.x, 1.72f, e.pos.z, 0.40f, floatArrayOf(0.45f, 0.16f, 0.22f))

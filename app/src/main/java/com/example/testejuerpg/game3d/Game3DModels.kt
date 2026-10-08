@@ -26,6 +26,14 @@ enum class EnemyKind(
     CRYSTAL_BRUTE("Bruto Cristalino", 285f, 24f, 0.78f, 0.90f),
     MEMORY_ECHO("Eco de Memória", 176f, 21f, 1.05f, 0.66f),
     PORTAL_LEECH("Sanguessuga de Portal", 148f, 18f, 1.55f, 0.56f),
+    THORN_LING("Broto Espinhado", 72f, 11f, 1.40f, 0.52f),
+    SAND_BOMBER("Bombardeiro das Dunas", 132f, 38f, 1.10f, 0.62f),
+    PHASE_MOTH("Mariposa Fásica", 114f, 25f, 2.55f, 0.48f),
+    MOSS_MENDER("Musgo Reparador", 105f, 8f, 1.25f, 0.58f),
+    CRYSTAL_SENTINEL("Sentinela Cristalina", 310f, 32f, 0.72f, 0.92f),
+    RIFT_ASSASSIN("Assassino da Fenda", 165f, 58f, 3.25f, 0.54f),
+    MAGNET_TURRET("Torreta Magnética", 155f, 42f, 0.0f, 0.72f),
+    ECHO_SPLITTER("Eco Saltador", 125f, 27f, 1.85f, 0.58f),
     OVERLOAD_TITAN("Titã de Sobrecarga", 900f, 28f, 0.78f, 1.55f)
 }
 

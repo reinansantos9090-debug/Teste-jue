@@ -230,23 +230,83 @@ class Game3DEngine(private val context: Context) {
             val dz = player.z - e.pos.z
             val dist = sqrt(dx * dx + dz * dz)
             e.attackTimer = max(0f, e.attackTimer - dt)
+            e.specialTimer = max(0f, e.specialTimer - dt)
 
-            if (dist > 1.6f + e.kind.radius) {
-                val inv = 1f / max(0.001f, dist)
-                val speedMultiplier = if (e.kind == EnemyKind.OVERLOAD_TITAN && e.phase2) {
-                    OfflineBossCatalog.forId(e.bossProfileId).phase2Multiplier
-                } else 1f
-                val bossSpeed = bossProfile?.baseSpeed ?: e.kind.speed
-                e.pos.x += dx * inv * bossSpeed * speedMultiplier * dt
-                val bossSpeed = bossProfile?.baseSpeed ?: e.kind.speed
-                e.pos.z += dz * inv * bossSpeed * speedMultiplier * dt
-            } else if (e.attackTimer <= 0f) {
-                val bossProfile = if (e.kind == EnemyKind.OVERLOAD_TITAN) OfflineBossCatalog.forId(e.bossProfileId) else null
-                e.attackTimer = bossProfile?.projectileInterval?.coerceAtLeast(0.8f) ?: 1.5f
-                val contactDamage = bossProfile?.contactDamage ?: e.kind.attack
-                takeDamage(contactDamage * if (e.elite) 1.25f else 1f)
-                if (e.kind == EnemyKind.OVERLOAD_TITAN) {
-                    spawnBurst(player, 0.22f, floatArrayOf(1f, 0.28f, 0.5f))
+            when (e.kind) {
+                EnemyKind.MAGNET_TURRET -> {
+                    if (e.attackTimer <= 0f && dist < 20f) {
+                        e.attackTimer = 2.20f
+                        spawnEnemyProjectile(e, 1.25f, 7.0f)
+                        spawnBurst(e.pos, 0.12f, floatArrayOf(1f,0.55f,0.30f))
+                    }
+                }
+                EnemyKind.MOSS_MENDER -> {
+                    if (e.specialTimer <= 0f) {
+                        e.specialTimer = 4.2f
+                        enemies.asSequence()
+                            .filter { it != e && !it.dead }
+                            .filter { it.pos.distanceSquared(e.pos) < 32f }
+                            .take(2)
+                            .forEach { ally -> ally.hp = min(ally.kind.hp * 1.45f, ally.hp + ally.kind.hp * 0.16f) }
+                        spawnBurst(e.pos, 0.18f, floatArrayOf(0.35f,1f,0.55f))
+                    }
+                    moveEnemyToward(e, dx, dz, dist, dt, 1.0f)
+                }
+                EnemyKind.SAND_BOMBER -> {
+                    if (dist < 3.2f && e.specialTimer <= 0f) {
+                        e.specialTimer = 4f
+                        takeDamage(e.kind.attack * 1.35f)
+                        spawnBurst(player,0.45f,floatArrayOf(1f,0.42f,0.18f))
+                    } else if (dist > 5.5f) {
+                        moveEnemyToward(e,dx,dz,dist,dt,0.85f)
+                    }
+                    if (e.attackTimer <= 0f && dist < 18f) {
+                        e.attackTimer = 2.6f
+                        spawnEnemyProjectile(e,1.05f,5.4f)
+                    }
+                }
+                EnemyKind.PHASE_MOTH -> {
+                    val orbitX = -dz
+                    val orbitZ = dx
+                    if (e.specialTimer <= 0f && dist < 13f) {
+                        e.specialTimer = 3.1f
+                        val inv = 1f / max(0.001f, dist)
+                        e.pos.x = player.x - dx * inv * 5.5f
+                        e.pos.z = player.z - dz * inv * 5.5f
+                    } else {
+                        val inv = 1f / max(0.001f, sqrt(orbitX*orbitX+orbitZ*orbitZ))
+                        e.pos.x += orbitX * inv * e.kind.speed * dt
+                        e.pos.z += orbitZ * inv * e.kind.speed * dt
+                    }
+                    if (dist < 2.2f && e.attackTimer <= 0f) {
+                        e.attackTimer=1.0f
+                        takeDamage(e.kind.attack * 1.15f)
+                    }
+                }
+                EnemyKind.RIFT_ASSASSIN -> {
+                    if (e.specialTimer <= 0f && dist < 14f) {
+                        e.specialTimer=2.8f
+                        val inv=1f/max(0.001f,dist)
+                        e.pos.x=player.x+dx*inv*2.4f
+                        e.pos.z=player.z+dz*inv*2.4f
+                        screenShake=0.12f
+                        spawnBurst(e.pos,0.20f,floatArrayOf(0.65f,0.35f,1f))
+                    } else {
+                        moveEnemyToward(e,dx,dz,dist,dt,1.35f)
+                    }
+                    if (dist < 2.0f && e.attackTimer <= 0f) {
+                        e.attackTimer=0.8f
+                        takeDamage(e.kind.attack * 1.3f)
+                    }
+                }
+                else -> {
+                    if (dist > 1.6f + e.kind.radius) {
+                        moveEnemyToward(e,dx,dz,dist,dt,if (e.kind == EnemyKind.CRYSTAL_SENTINEL) 0.62f else 1.0f)
+                    } else if (e.attackTimer <= 0f) {
+                        e.attackTimer=if (e.kind == EnemyKind.CRYSTAL_SENTINEL) 1.8f else 1.5f
+                        val contactDamage=if (e.kind == EnemyKind.CRYSTAL_SENTINEL) e.kind.attack*0.82f else e.kind.attack
+                        takeDamage(contactDamage*if(e.elite)1.25f else 1f)
+                    }
                 }
             }
 
@@ -447,6 +507,26 @@ class Game3DEngine(private val context: Context) {
         }
     }
 
+
+    private fun moveEnemyToward(e: EnemyEntity, dx: Float, dz: Float, dist: Float, dt: Float, speedMultiplier: Float) {
+        val inv = 1f / max(0.001f, dist)
+        e.pos.x += dx * inv * e.kind.speed * speedMultiplier * dt
+        e.pos.z += dz * inv * e.kind.speed * speedMultiplier * dt
+    }
+
+    private fun spawnEnemyProjectile(enemy: EnemyEntity, damageMultiplier: Float, speed: Float) {
+        val dx = player.x - enemy.pos.x
+        val dz = player.z - enemy.pos.z
+        val distance = max(0.001f, sqrt(dx * dx + dz * dz))
+        projectiles += Projectile(
+            V3(enemy.pos.x, enemy.pos.y + 0.35f, enemy.pos.z),
+            V3(dx / distance * speed, 0f, dz / distance * speed),
+            enemy.kind.attack * damageMultiplier,
+            3.0f,
+            false
+        )
+    }
+
     private fun spawnBossProjectile(boss: EnemyEntity) {
         val dx = player.x - boss.pos.x
         val dz = player.z - boss.pos.z
@@ -462,17 +542,17 @@ class Game3DEngine(private val context: Context) {
 
     private fun spawnEnemy(elite: Boolean = false) {
         val choices = when {
-            huntKills < 4 -> listOf(EnemyKind.AETHER_SLIME, EnemyKind.NEON_STALKER, EnemyKind.PRISM_MOTH)
+            huntKills < 4 -> listOf(
+                EnemyKind.AETHER_SLIME, EnemyKind.NEON_STALKER, EnemyKind.PRISM_MOTH,
+                EnemyKind.THORN_LING
+            )
             huntKills < 10 -> listOf(
                 EnemyKind.AETHER_SLIME, EnemyKind.NEON_STALKER, EnemyKind.SCRAP_GOLEM,
-                EnemyKind.SCRAP_DRONE, EnemyKind.PLASMA_EEL, EnemyKind.MAGNET_HARE
+                EnemyKind.SCRAP_DRONE, EnemyKind.PLASMA_EEL, EnemyKind.MAGNET_HARE,
+                EnemyKind.THORN_LING, EnemyKind.MOSS_MENDER, EnemyKind.SAND_BOMBER,
+                EnemyKind.PHASE_MOTH
             )
-            else -> listOf(
-                EnemyKind.NEON_STALKER, EnemyKind.SCRAP_GOLEM, EnemyKind.VOID_BEETLE,
-                EnemyKind.AURORA_WRAITH, EnemyKind.CRYSTAL_BRUTE, EnemyKind.MEMORY_ECHO,
-                EnemyKind.PORTAL_LEECH
-            )
-        }
+            else -> EnemyKind.entries.filter { it != EnemyKind.OVERLOAD_TITAN }
         spawnEnemyOfKind(choices[random.nextInt(choices.size)], elite)
     }
 
@@ -547,6 +627,9 @@ class Game3DEngine(private val context: Context) {
         }
         gold += if (e.kind == EnemyKind.OVERLOAD_TITAN) 250 else if (e.elite) 20 else 8
 
+        if (e.kind == EnemyKind.ECHO_SPLITTER) {
+            repeat(2) { spawnEnemyOfKind(EnemyKind.AETHER_SLIME, false) }
+        }
         if (e.kind != EnemyKind.OVERLOAD_TITAN) {
             drops += Drop(V3(e.pos.x, 0.3f, e.pos.z), 0)
             if (random.nextFloat() < 0.25f) {
