@@ -2,14 +2,10 @@ extends "res://scripts/gameplay/enemy_agent.gd"
 ## Three-phase boss controller with authored attack patterns per boss.
 
 signal phase_changed(phase:int)
-signal summon_requested(monster_id:String,count:int)
-signal projectile_requested(origin:Vector3,target:Vector3,damage:float)
-signal area_requested(center:Vector3,radius:float,damage:float)
 
 var boss_id:=""
 var boss_stats:Dictionary={}
 var phase:=1
-var special_timer:=2.2
 var summon_timer:=8.0
 var pattern_index:=0
 
