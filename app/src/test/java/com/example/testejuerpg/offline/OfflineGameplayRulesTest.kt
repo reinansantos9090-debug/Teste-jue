@@ -31,4 +31,19 @@ class OfflineGameplayRulesTest {
         val original = EngineSaveData(7,81.5f,245f,240f,197f,1234,48,92,5,4.5f,-2.5f,"Caçador|Aurora")
         assertEquals(original, OfflineSaveCodec.decode(OfflineSaveCodec.encode(original)))
     }
+    @Test fun crafting_requires_level_and_materials() {
+        val recipe = com.example.testejuerpg.offline.systems.OfflineCraftDefinition(
+            id = "gadget_nanodrone",
+            name = "Nanodrone",
+            category = "gadget",
+            ingredients = mapOf("aether_core" to 5, "scrap" to 20),
+            result = "nanodrone",
+            amount = 1,
+            unlockLevel = 3
+        )
+        assertTrue(!OfflineCraftingRules.canCraft(recipe, 2, mapOf("aether_core" to 99, "scrap" to 99)))
+        assertTrue(!OfflineCraftingRules.canCraft(recipe, 3, mapOf("aether_core" to 4, "scrap" to 20)))
+        assertTrue(OfflineCraftingRules.canCraft(recipe, 3, mapOf("aether_core" to 5, "scrap" to 20)))
+    }
+
 }
